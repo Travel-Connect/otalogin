@@ -1,5 +1,5 @@
-import { redirect, notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDetail } from './FacilityDetail';
 
 interface Props {
@@ -44,13 +44,21 @@ const DUMMY_FACILITY = {
 
 export default async function FacilityPage({ params }: Props) {
   const { facilityId } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
+  // Supabase未設定の場合は開発モードとして動作
+  const isDevelopmentMode = !isSupabaseConfigured();
+
+  if (!isDevelopmentMode) {
+    const supabase = await createClient();
+    if (supabase) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        redirect('/login');
+      }
+    }
   }
 
   // TODO: Supabaseから施設情報を取得
