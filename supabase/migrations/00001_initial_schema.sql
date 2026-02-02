@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS facilities (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_facilities_code ON facilities(code);
+CREATE INDEX IF NOT EXISTS idx_facilities_code ON facilities(code);
 
 -- ============================================
 -- channels: OTAチャネル定義テーブル
@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS facility_accounts (
   UNIQUE (facility_id, channel_id, account_type)
 );
 
-CREATE INDEX idx_facility_accounts_facility ON facility_accounts(facility_id);
-CREATE INDEX idx_facility_accounts_channel ON facility_accounts(channel_id);
+CREATE INDEX IF NOT EXISTS idx_facility_accounts_facility ON facility_accounts(facility_id);
+CREATE INDEX IF NOT EXISTS idx_facility_accounts_channel ON facility_accounts(channel_id);
 
 -- ============================================
 -- account_field_definitions: 追加フィールド定義テーブル
@@ -106,9 +106,9 @@ CREATE TABLE IF NOT EXISTS automation_jobs (
   created_by UUID -- ユーザーIDまたは'system'をNULLで表現
 );
 
-CREATE INDEX idx_automation_jobs_facility ON automation_jobs(facility_id);
-CREATE INDEX idx_automation_jobs_status ON automation_jobs(status);
-CREATE INDEX idx_automation_jobs_created ON automation_jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_automation_jobs_facility ON automation_jobs(facility_id);
+CREATE INDEX IF NOT EXISTS idx_automation_jobs_status ON automation_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_automation_jobs_created ON automation_jobs(created_at DESC);
 
 -- ============================================
 -- channel_health_status: チャネルヘルスステータステーブル
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS channel_health_status (
   UNIQUE (facility_id, channel_id)
 );
 
-CREATE INDEX idx_channel_health_status_facility ON channel_health_status(facility_id);
+CREATE INDEX IF NOT EXISTS idx_channel_health_status_facility ON channel_health_status(facility_id);
 
 -- ============================================
 -- user_roles: ユーザー権限テーブル
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS pairing_codes (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_pairing_codes_code ON pairing_codes(code) WHERE NOT used;
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_code ON pairing_codes(code) WHERE NOT used;
 
 -- ============================================
 -- 更新日時自動更新トリガー
@@ -175,30 +175,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_facilities_updated_at ON facilities;
 CREATE TRIGGER tr_facilities_updated_at
   BEFORE UPDATE ON facilities
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS tr_channels_updated_at ON channels;
 CREATE TRIGGER tr_channels_updated_at
   BEFORE UPDATE ON channels
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS tr_facility_accounts_updated_at ON facility_accounts;
 CREATE TRIGGER tr_facility_accounts_updated_at
   BEFORE UPDATE ON facility_accounts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS tr_account_field_definitions_updated_at ON account_field_definitions;
 CREATE TRIGGER tr_account_field_definitions_updated_at
   BEFORE UPDATE ON account_field_definitions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS tr_account_field_values_updated_at ON account_field_values;
 CREATE TRIGGER tr_account_field_values_updated_at
   BEFORE UPDATE ON account_field_values
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS tr_channel_health_status_updated_at ON channel_health_status;
 CREATE TRIGGER tr_channel_health_status_updated_at
   BEFORE UPDATE ON channel_health_status
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS tr_user_roles_updated_at ON user_roles;
 CREATE TRIGGER tr_user_roles_updated_at
   BEFORE UPDATE ON user_roles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();

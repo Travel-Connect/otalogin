@@ -42,21 +42,25 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- facilities ポリシー
 -- MVP: 全ユーザーが全施設を閲覧可能
 -- ============================================
+DROP POLICY IF EXISTS "Authenticated users can view all facilities" ON facilities;
 CREATE POLICY "Authenticated users can view all facilities"
   ON facilities FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Admins can insert facilities" ON facilities;
 CREATE POLICY "Admins can insert facilities"
   ON facilities FOR INSERT
   TO authenticated
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS "Admins can update facilities" ON facilities;
 CREATE POLICY "Admins can update facilities"
   ON facilities FOR UPDATE
   TO authenticated
   USING (is_admin());
 
+DROP POLICY IF EXISTS "Admins can delete facilities" ON facilities;
 CREATE POLICY "Admins can delete facilities"
   ON facilities FOR DELETE
   TO authenticated
@@ -66,6 +70,7 @@ CREATE POLICY "Admins can delete facilities"
 -- channels ポリシー
 -- 全ユーザーが閲覧可能
 -- ============================================
+DROP POLICY IF EXISTS "Anyone can view channels" ON channels;
 CREATE POLICY "Anyone can view channels"
   ON channels FOR SELECT
   TO authenticated
@@ -76,21 +81,25 @@ CREATE POLICY "Anyone can view channels"
 -- 閲覧: 全ユーザー
 -- 更新: adminのみ
 -- ============================================
+DROP POLICY IF EXISTS "Authenticated users can view facility_accounts" ON facility_accounts;
 CREATE POLICY "Authenticated users can view facility_accounts"
   ON facility_accounts FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Admins can insert facility_accounts" ON facility_accounts;
 CREATE POLICY "Admins can insert facility_accounts"
   ON facility_accounts FOR INSERT
   TO authenticated
   WITH CHECK (is_admin());
 
+DROP POLICY IF EXISTS "Admins can update facility_accounts" ON facility_accounts;
 CREATE POLICY "Admins can update facility_accounts"
   ON facility_accounts FOR UPDATE
   TO authenticated
   USING (is_admin());
 
+DROP POLICY IF EXISTS "Admins can delete facility_accounts" ON facility_accounts;
 CREATE POLICY "Admins can delete facility_accounts"
   ON facility_accounts FOR DELETE
   TO authenticated
@@ -99,6 +108,7 @@ CREATE POLICY "Admins can delete facility_accounts"
 -- ============================================
 -- account_field_definitions ポリシー
 -- ============================================
+DROP POLICY IF EXISTS "Anyone can view account_field_definitions" ON account_field_definitions;
 CREATE POLICY "Anyone can view account_field_definitions"
   ON account_field_definitions FOR SELECT
   TO authenticated
@@ -107,11 +117,13 @@ CREATE POLICY "Anyone can view account_field_definitions"
 -- ============================================
 -- account_field_values ポリシー
 -- ============================================
+DROP POLICY IF EXISTS "Authenticated users can view account_field_values" ON account_field_values;
 CREATE POLICY "Authenticated users can view account_field_values"
   ON account_field_values FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Admins can manage account_field_values" ON account_field_values;
 CREATE POLICY "Admins can manage account_field_values"
   ON account_field_values FOR ALL
   TO authenticated
@@ -120,16 +132,19 @@ CREATE POLICY "Admins can manage account_field_values"
 -- ============================================
 -- automation_jobs ポリシー
 -- ============================================
+DROP POLICY IF EXISTS "Authenticated users can view automation_jobs" ON automation_jobs;
 CREATE POLICY "Authenticated users can view automation_jobs"
   ON automation_jobs FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can create automation_jobs" ON automation_jobs;
 CREATE POLICY "Authenticated users can create automation_jobs"
   ON automation_jobs FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Service role can update automation_jobs" ON automation_jobs;
 CREATE POLICY "Service role can update automation_jobs"
   ON automation_jobs FOR UPDATE
   TO authenticated
@@ -138,6 +153,7 @@ CREATE POLICY "Service role can update automation_jobs"
 -- ============================================
 -- channel_health_status ポリシー
 -- ============================================
+DROP POLICY IF EXISTS "Authenticated users can view channel_health_status" ON channel_health_status;
 CREATE POLICY "Authenticated users can view channel_health_status"
   ON channel_health_status FOR SELECT
   TO authenticated
@@ -146,11 +162,13 @@ CREATE POLICY "Authenticated users can view channel_health_status"
 -- ============================================
 -- user_roles ポリシー
 -- ============================================
+DROP POLICY IF EXISTS "Users can view their own role" ON user_roles;
 CREATE POLICY "Users can view their own role"
   ON user_roles FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Admins can view all roles" ON user_roles;
 CREATE POLICY "Admins can view all roles"
   ON user_roles FOR SELECT
   TO authenticated
