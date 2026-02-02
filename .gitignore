@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+e2e-artifacts.zip
+
+# Supabase
+.supabase/
+
+# Extension build
+apps/extension/dist/
+
+# Secrets (never commit)
+*.pem
+*.key
+credentials.json
+token.json

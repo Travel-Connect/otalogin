@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OTAログイン支援</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 16px;
+      color: #333;
+    }
+    h1 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: #1a1a1a;
+    }
+    .status {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .status.connected {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status.disconnected {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .info {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 12px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .info-label {
+      color: #888;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+    .pending-jobs {
+      margin-top: 12px;
+      padding: 8px;
+      background: #fef3c7;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #92400e;
+    }
+  </style>
+</head>
+<body>
+  <h1>OTAログイン支援</h1>
+
+  <div id="status" class="status disconnected">
+    未接続
+  </div>
+
+  <div class="info">
+    <div class="info-row">
+      <span class="info-label">デバイス名</span>
+      <span id="device-name">-</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">ポータルURL</span>
+      <span id="portal-url">-</span>
+    </div>
+  </div>
+
+  <div id="pending-jobs" class="pending-jobs" style="display: none;">
+    保留中のジョブ: <span id="pending-count">0</span>件
+  </div>
+
+  <button id="pair-btn">ペアリング設定</button>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

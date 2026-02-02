@@ -1,0 +1,29 @@
+{
+  "name": "otalogin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OTA自動ログイン支援ツール（Chrome拡張 + 社内Webポータル）",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @otalogin/web dev",
+    "build": "pnpm --filter @otalogin/web build",
+    "build:extension": "pnpm --filter @otalogin/extension build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "e2e:mock": "pnpm --filter @otalogin/web e2e:mock",
+    "e2e:real": "pnpm --filter @otalogin/web e2e:real",
+    "e2e:pack": "node scripts/e2e-pack.js",
+    "verify": "pnpm lint && pnpm test && pnpm e2e:mock",
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4"
+  }
+}
