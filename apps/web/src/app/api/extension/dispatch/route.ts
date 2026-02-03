@@ -5,6 +5,9 @@ import { CreateJobSchema } from '@otalogin/shared';
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
 
     // ユーザー認証確認
     const {

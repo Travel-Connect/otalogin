@@ -15,8 +15,11 @@ export async function GET(request: NextRequest, { params }: Props) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const deviceToken = authHeader.slice(7);
+    const _deviceToken = authHeader.slice(7); // TODO: use for device verification
     const supabase = await createServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
 
     // デバイストークンの検証
     // TODO: device_tokens テーブルで検証
@@ -72,10 +75,11 @@ export async function GET(request: NextRequest, { params }: Props) {
       .eq('id', jobId);
 
     // 注意: パスワードは暗号化されている前提。実際には復号処理が必要
+    const channelData = job.channels as unknown as { code: string; login_url: string } | null;
     return NextResponse.json({
       job_id: job.id,
-      channel_code: (job.channels as { code: string })?.code,
-      login_url: (job.channels as { login_url: string })?.login_url,
+      channel_code: channelData?.code,
+      login_url: channelData?.login_url,
       login_id: account.login_id,
       password: account.password, // TODO: 復号処理
       extra_fields: {}, // TODO: 追加フィールドの取得

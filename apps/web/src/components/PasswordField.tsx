@@ -7,7 +7,7 @@ interface PasswordFieldProps {
   onReveal?: () => Promise<string>; // 実際のパスワードを取得するコールバック
 }
 
-export function PasswordField({ value, onReveal }: PasswordFieldProps) {
+export function PasswordField({ value: _value, onReveal }: PasswordFieldProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [displayValue, setDisplayValue] = useState('••••••••');
 

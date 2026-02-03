@@ -6,7 +6,7 @@ interface FacilityMenuProps {
   facilityId: string;
 }
 
-export function FacilityMenu({ facilityId }: FacilityMenuProps) {
+export function FacilityMenu({ facilityId: _facilityId }: FacilityMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 

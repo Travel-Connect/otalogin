@@ -15,9 +15,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { pairing_code, device_name } = parsed.data;
+    const { pairing_code: _pairing_code, device_name: _device_name } = parsed.data;
 
-    const supabase = await createServiceClient();
+    const _supabase = await createServiceClient(); // TODO: use for device token storage
 
     // ペアリングコードの検証
     // TODO: pairing_codes テーブルで検証
