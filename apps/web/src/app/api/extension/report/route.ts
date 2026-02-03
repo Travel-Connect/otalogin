@@ -22,9 +22,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { job_id, status, error_code, error_message, duration_ms } = parsed.data;
+    const { job_id, status, error_code: _error_code, error_message, duration_ms: _duration_ms } = parsed.data;
 
     const supabase = await createServiceClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
 
     // ジョブのステータスを更新
     const { error: updateError } = await supabase

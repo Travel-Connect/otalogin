@@ -67,6 +67,42 @@
       background: #9ca3af;
       cursor: not-allowed;
     }
+    .btn {
+      margin-top: 8px;
+    }
+    .btn-secondary {
+      background: #6b7280;
+    }
+    .btn-secondary:hover {
+      background: #4b5563;
+    }
+    .polling-on {
+      background: #10b981;
+    }
+    .polling-on:hover {
+      background: #059669;
+    }
+    .polling-off {
+      background: #6b7280;
+    }
+    .section {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .section-title {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .monitor-set {
+      color: #059669;
+      font-weight: 500;
+    }
+    .monitor-unset {
+      color: #9ca3af;
+    }
     .pending-jobs {
       margin-top: 12px;
       padding: 8px;
@@ -95,11 +131,25 @@
     </div>
   </div>
 
+  <button id="pair-btn" class="btn">ペアリング設定</button>
+
+  <!-- 監視設定セクション -->
+  <div class="section">
+    <div class="section-title">監視設定</div>
+    <div class="info">
+      <div class="info-row">
+        <span class="info-label">監視ウィンドウ</span>
+        <span id="monitor-status" class="monitor-unset">未設定</span>
+      </div>
+    </div>
+    <button id="monitor-btn" class="btn btn-secondary">このウィンドウを監視用に設定</button>
+    <button id="polling-btn" class="btn polling-off">自動監視: OFF</button>
+    <button id="manual-poll-btn" class="btn btn-secondary">今すぐチェック</button>
+  </div>
+
   <div id="pending-jobs" class="pending-jobs" style="display: none;">
     保留中のジョブ: <span id="pending-count">0</span>件
   </div>
-
-  <button id="pair-btn">ペアリング設定</button>
 
   <script src="popup.js" type="module"></script>
 </body>

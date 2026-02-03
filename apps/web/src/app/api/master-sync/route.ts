@@ -5,6 +5,9 @@ import { google } from 'googleapis';
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
 
     // ユーザー認証確認
     const {
@@ -15,15 +18,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // TODO: admin権限チェック
-    // const { data: userRole } = await supabase
-    //   .from('user_roles')
-    //   .select('role')
-    //   .eq('user_id', user.id)
-    //   .single();
-    // if (userRole?.role !== 'admin') {
-    //   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    // }
+    // admin権限チェック
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (userRole?.role !== 'admin') {
+      return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { facility_id, channel_id } = body;
@@ -48,54 +52,84 @@ export async function POST(request: NextRequest) {
     const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
 
     // マスタPWシートからデータを取得
+    // シート形式: 施設ID | 施設名 | OTA | ID | PW | ログインURL | オペレータID(一休)
     const spreadsheetId = process.env.GOOGLE_MASTER_SHEETS_ID;
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Sheet1!A:D', // facility_code, channel, login_id, password
+      range: '施設×OTAアカウント!A:G',
     });
 
     const rows = response.data.values;
     if (!rows || rows.length === 0) {
-      return NextResponse.json({ error: 'No data found in sheet' }, { status: 404 });
+      return NextResponse.json({ error: 'シートにデータがありません' }, { status: 404 });
     }
 
-    // 施設情報を取得
+    // 施設・チャネル情報を取得
     const serviceSupabase = await createServiceClient();
+    if (!serviceSupabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
     const { data: facility } = await serviceSupabase
       .from('facilities')
-      .select('code')
+      .select('id, code, name')
       .eq('id', facility_id)
       .single();
 
     const { data: channel } = await serviceSupabase
       .from('channels')
-      .select('code')
+      .select('id, code, name')
       .eq('id', channel_id)
       .single();
 
     if (!facility || !channel) {
       return NextResponse.json(
-        { error: 'Facility or channel not found' },
+        { error: '施設またはチャネルが見つかりません' },
         { status: 404 }
       );
     }
 
     // 該当する行を検索
-    const header = rows[0];
-    const dataRows = rows.slice(1);
+    // ヘッダー行をスキップし、説明行（2行目）もスキップ
+    const dataRows = rows.slice(2);
 
-    const targetRow = dataRows.find(
-      (row) => row[0] === facility.code && row[1] === channel.code
-    );
+    // マッチング: 施設ID(col 0) = facility.code, OTA(col 2) = channel.name
+    const targetRow = dataRows.find((row) => {
+      const sheetFacilityId = row[0]?.toString().trim();
+      const sheetOTA = row[2]?.toString().trim();
+
+      // 施設IDでマッチ（facility.code または facility.id の一部）
+      const facilityMatch =
+        sheetFacilityId === facility.code ||
+        sheetFacilityId === facility.id ||
+        facility.id.startsWith(sheetFacilityId);
+
+      // OTA名でマッチ（channel.name または channel.code）
+      const channelMatch =
+        sheetOTA === channel.name ||
+        sheetOTA === channel.code ||
+        sheetOTA?.toLowerCase() === channel.code?.toLowerCase();
+
+      return facilityMatch && channelMatch;
+    });
 
     if (!targetRow) {
       return NextResponse.json(
-        { error: 'No matching data found in master sheet' },
+        { error: `シートに該当データがありません（施設: ${facility.code}, OTA: ${channel.name}）` },
         { status: 404 }
       );
     }
 
-    const [, , loginId, password] = targetRow;
+    // 列インデックス: 0=施設ID, 1=施設名, 2=OTA, 3=ID, 4=PW, 5=ログインURL, 6=オペレータID
+    const loginId = targetRow[3]?.toString().trim();
+    const password = targetRow[4]?.toString().trim();
+
+    // ログインIDとパスワードが必須
+    if (!loginId || !password) {
+      return NextResponse.json(
+        { error: 'シートにログインIDまたはパスワードがありません' },
+        { status: 400 }
+      );
+    }
 
     // アカウント情報を更新
     // TODO: パスワードの暗号化
