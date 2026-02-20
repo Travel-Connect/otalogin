@@ -231,12 +231,13 @@ async function selectFacility(
 
   // ドロップダウン選択と検索入力を並行して行う
   const hasDropdown = !!action.dropdown_select;
-  const hasSearch = !!(action.search_input && action.search_submit);
+  const hasSearch = !!action.search_input;
+  const hasSearchButton = !!(action.search_input && action.search_submit);
 
   // 両方の要素を並行して取得
   const [dropdownTrigger, searchInput] = await Promise.all([
     hasDropdown ? waitForElement(action.dropdown_select!.trigger, 3000) : Promise.resolve(null),
-    hasSearch ? waitForElement(action.search_input!, 3000) : Promise.resolve(null),
+    hasSearch ? waitForElement(action.search_input!, 5000) : Promise.resolve(null),
   ]);
 
   if (hasDropdown && !dropdownTrigger) {
@@ -327,8 +328,26 @@ async function selectFacility(
     await inputPromise;
   }
 
+  // Enterキーで送信するモード（るるぶ等: 検索入力後にEnterで施設選択完了）
+  if (action.submit_with_enter && searchInput) {
+    console.log('[OTALogin] Submitting facility search with Enter key');
+    await sleep(300);
+    (searchInput as HTMLElement).dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true })
+    );
+    (searchInput as HTMLElement).dispatchEvent(
+      new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true })
+    );
+    (searchInput as HTMLElement).dispatchEvent(
+      new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true })
+    );
+    // ページ遷移を待つ
+    await sleep(2000);
+    return { success: true };
+  }
+
   // 検索ボタンをクリック
-  if (hasSearch) {
+  if (hasSearchButton) {
     const searchButton = await waitForElement(action.search_submit!, 2000);
     if (!searchButton) {
       return { success: false, error: `Search button not found: ${action.search_submit}` };

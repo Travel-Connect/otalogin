@@ -37,6 +37,8 @@ export interface PostLoginAction {
   id_column_index: number;
   /** 施設IDのキー（extra_fieldsで指定） */
   id_key: string;
+  /** 検索入力後にEnterキーで送信する（行クリック不要の場合） */
+  submit_with_enter?: boolean;
 }
 
 export interface ChannelConfig {
@@ -202,10 +204,11 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
     success_indicator: '[data-testid="search-criteria-input-field"], [data-element-name="ycs-property-search-search-field"]',
     // OTP入力に時間がかかるため5分に延長
     pending_timeout_ms: 300000,
-    // ログイン後に施設を検索して選択
+    // ログイン後に施設IDを入力してEnterで選択
     post_login_action: {
       type: 'select_facility',
-      search_input: '[data-element-name="ycs-property-search-search-field"] input, [data-testid="search-criteria-input-field"] input',
+      search_input: '[data-element-name="ycs-property-search-search-field"] input, [data-testid="search-criteria-input-field"] input, input[type="search"], input[placeholder*="検索"], input[placeholder*="search"]',
+      submit_with_enter: true,
       row_selector: '[data-element-name*="property"], [data-testid*="property"], .property-card',
       id_column_index: 0,
       id_key: 'rurubu_facility_code',
