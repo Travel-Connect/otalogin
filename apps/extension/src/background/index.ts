@@ -12,8 +12,8 @@ import type {
 
 // 設定
 const CONFIG = {
-  portalUrl: 'http://localhost:3000', // TODO: 環境変数から取得
-  apiBaseUrl: 'http://localhost:3000/api',
+  portalUrl: 'http://localhost:4000', // TODO: 環境変数から取得
+  apiBaseUrl: 'http://localhost:4000/api',
 };
 
 // ストレージキー
@@ -39,11 +39,14 @@ let isProcessingJobs = false;
     await chrome.storage.local.set({
       [STORAGE_KEYS.deviceToken]: 'dev-token-12345',
       [STORAGE_KEYS.deviceName]: '開発PC',
-      [STORAGE_KEYS.portalUrl]: 'http://localhost:3000',
       [STORAGE_KEYS.pollingEnabled]: true,
     });
     console.log('[DEV] 開発用トークンを自動設定しました');
   }
+  // portalUrl は常に CONFIG に合わせて更新（開発中のポート変更に対応）
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.portalUrl]: CONFIG.portalUrl,
+  });
   // ポーリングを開始
   await setupPollingAlarm();
 })();
@@ -99,14 +102,19 @@ async function pollAndProcessJobs(): Promise<void> {
     }
 
     const data = await response.json();
-    const jobs = data.jobs || [];
+    const allJobs = data.jobs || [];
+
+    // ポーリングでは health_check のみ処理（manual_login は DISPATCH_LOGIN 経由のみ）
+    const jobs = allJobs.filter(
+      (job: { job_type: string }) => job.job_type === 'health_check'
+    );
 
     if (jobs.length === 0) {
-      console.log('[Polling] 待機中のジョブなし');
+      console.log('[Polling] 待機中の health_check ジョブなし');
       return;
     }
 
-    console.log(`[Polling] ${jobs.length} 件のジョブを処理`);
+    console.log(`[Polling] ${jobs.length} 件の health_check ジョブを処理`);
 
     // 監視ウィンドウを取得または作成
     const windowId = await getOrCreateMonitorWindow();
@@ -176,12 +184,28 @@ async function processHealthCheckJob(
   const startTime = Date.now();
 
   try {
-    // ジョブの詳細を取得
-    const credentials = await fetchJobCredentials(job.id, deviceToken);
-    if (!credentials) {
-      await reportJobResultWithCode(job.id, 'failed', 'NETWORK_ERROR', 'ジョブ情報の取得に失敗');
+    // ジョブの詳細を取得（claim も同時に行われる）
+    const result = await fetchJobCredentials(job.id, deviceToken);
+
+    // 409 Conflict: 既に他でclaim済み - 安全にスキップ（エラー報告不要）
+    if (result.status === 'conflict') {
       return;
     }
+
+    // 401: 認証エラー
+    if (result.status === 'unauthorized') {
+      console.error('[HealthCheck] 認証エラー - トークンが無効です');
+      return;
+    }
+
+    // その他のエラー
+    if (result.status === 'error') {
+      await reportJobResultWithCode(job.id, 'failed', 'NETWORK_ERROR', result.message);
+      return;
+    }
+
+    // 成功: credentials を取得
+    const credentials = result.credentials;
 
     // タブを作成してログイン実行
     const tab = await chrome.tabs.create({
@@ -350,22 +374,58 @@ async function handleDispatchLogin(
   const { job_id } = payload;
 
   try {
+    // 新しいジョブを開始する前に、古いpending状態をクリア
+    // これにより、以前のジョブの残骸が新しいジョブに影響しないようにする
+    await chrome.storage.local.remove(['pending_job', 'pending_login_check']);
+    console.log('[DISPATCH_LOGIN] Cleared old pending states');
+
     const deviceToken = await getDeviceToken();
     if (!deviceToken) {
       return { success: false, error: 'Device not paired' };
     }
 
-    // ジョブの詳細（資格情報）を取得
-    const credentials = await fetchJobCredentials(job_id, deviceToken);
-    if (!credentials) {
-      return { success: false, error: 'Failed to fetch job credentials' };
+    // ジョブの詳細（資格情報）を取得（claim も同時に行われる）
+    const result = await fetchJobCredentials(job_id, deviceToken);
+
+    // 409 Conflict: 既に他でclaim済み
+    if (result.status === 'conflict') {
+      console.log(`[DISPATCH_LOGIN] ジョブ ${job_id} は既にclaim済み`);
+      return { success: false, error: 'Job already claimed by another agent' };
     }
+
+    // 401: 認証エラー
+    if (result.status === 'unauthorized') {
+      return { success: false, error: 'Authentication failed - invalid token' };
+    }
+
+    // その他のエラー
+    if (result.status === 'error') {
+      return { success: false, error: `Failed to fetch job: ${result.message}` };
+    }
+
+    // 成功: credentials を取得
+    const credentials = result.credentials;
 
     // 同一ウィンドウにタブを追加
     const windowId = sender.tab?.windowId;
     if (!windowId) {
       return { success: false, error: 'Could not determine window ID' };
     }
+
+    // リダイレクト対策: タブ作成前に pending_job を保存
+    // ページがリダイレクトされて EXECUTE_LOGIN が届かなくても、
+    // リダイレクト先の content script が checkPendingLoginSuccess で拾える
+    await chrome.storage.local.set({
+      pending_job: {
+        job_id: credentials.job_id,
+        channel_code: credentials.channel_code,
+        login_id: credentials.login_id,
+        password: credentials.password,
+        extra_fields: credentials.extra_fields,
+        expires_at: Date.now() + 60000,
+      },
+    });
+    console.log('[DISPATCH_LOGIN] Saved pending_job to storage (redirect safety net)');
 
     const tab = await chrome.tabs.create({
       url: credentials.login_url,
@@ -377,16 +437,23 @@ async function handleDispatchLogin(
     // タブの読み込み完了を待ってから送信
     await waitForTabLoad(tab.id!);
 
-    await chrome.tabs.sendMessage(tab.id!, {
-      type: 'EXECUTE_LOGIN',
-      payload: {
-        job_id: credentials.job_id,
-        channel_code: credentials.channel_code,
-        login_id: credentials.login_id,
-        password: credentials.password,
-        extra_fields: credentials.extra_fields,
-      },
-    });
+    // EXECUTE_LOGIN を送信（リダイレクトで content script に届かない場合もある）
+    try {
+      await chrome.tabs.sendMessage(tab.id!, {
+        type: 'EXECUTE_LOGIN',
+        payload: {
+          job_id: credentials.job_id,
+          channel_code: credentials.channel_code,
+          login_id: credentials.login_id,
+          password: credentials.password,
+          extra_fields: credentials.extra_fields,
+        },
+      });
+    } catch (sendError) {
+      // Content script がまだ準備できていない or ページがリダイレクト中
+      // pending_job がストレージにあるので、次のページの content script が処理する
+      console.log('[DISPATCH_LOGIN] sendMessage failed, relying on pending_job:', sendError);
+    }
 
     return { success: true, data: { tab_id: tab.id } };
   } catch (error) {
@@ -398,12 +465,21 @@ async function handleDispatchLogin(
 }
 
 /**
+ * ジョブ資格情報取得の結果
+ */
+type FetchCredentialsResult =
+  | { status: 'success'; credentials: JobCredentials }
+  | { status: 'conflict' }  // 409: 既に他でclaim済み
+  | { status: 'unauthorized' }  // 401: 認証失敗
+  | { status: 'error'; message: string };
+
+/**
  * APIからジョブの資格情報を取得
  */
 async function fetchJobCredentials(
   jobId: string,
   deviceToken: string
-): Promise<JobCredentials | null> {
+): Promise<FetchCredentialsResult> {
   try {
     const response = await fetch(
       `${CONFIG.apiBaseUrl}/extension/job/${jobId}`,
@@ -414,13 +490,25 @@ async function fetchJobCredentials(
       }
     );
 
-    if (!response.ok) {
-      return null;
+    if (response.status === 409) {
+      // 既に他の拡張でclaim済み - 安全にスキップ
+      console.log(`[Job] ジョブ ${jobId} は既にclaim済みのためスキップ`);
+      return { status: 'conflict' };
     }
 
-    return await response.json();
-  } catch {
-    return null;
+    if (response.status === 401) {
+      return { status: 'unauthorized' };
+    }
+
+    if (!response.ok) {
+      return { status: 'error', message: `HTTP ${response.status}` };
+    }
+
+    const credentials = await response.json();
+    return { status: 'success', credentials };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { status: 'error', message };
   }
 }
 
@@ -521,10 +609,12 @@ chrome.runtime.onMessage.addListener(
 
 /**
  * ジョブ結果をAPIに報告
+ * Content Script からの error_code を優先して送信
  */
 async function reportJobResult(result: {
   job_id: string;
   status: 'success' | 'failed';
+  error_code?: string;
   error_message?: string;
 }): Promise<void> {
   const deviceToken = await getDeviceToken();

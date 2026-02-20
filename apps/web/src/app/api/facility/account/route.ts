@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { encryptPassword } from '@/lib/crypto/credentials';
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,18 +64,21 @@ export async function POST(request: NextRequest) {
 
     let accountId: string;
 
+    // パスワードを暗号化
+    const encryptedPassword = encryptPassword(password);
+
     if (existingAccount) {
-      // 既存アカウントを更新
+      // 既存アカウントを更新（暗号化パスワードを使用）
       const { error: updateError } = await supabase
         .from('facility_accounts')
         .update({
           login_id,
-          password,
+          password_encrypted: encryptedPassword,
+          password: null, // 旧カラムはクリア
         })
         .eq('id', existingAccount.id);
 
       if (updateError) {
-        console.error('Account update error:', updateError);
         return NextResponse.json(
           { error: 'アカウントの更新に失敗しました' },
           { status: 500 }
@@ -83,7 +87,7 @@ export async function POST(request: NextRequest) {
 
       accountId = existingAccount.id;
     } else {
-      // 新規アカウントを作成
+      // 新規アカウントを作成（暗号化パスワードを使用）
       const { data: newAccount, error: insertError } = await supabase
         .from('facility_accounts')
         .insert({
@@ -91,13 +95,13 @@ export async function POST(request: NextRequest) {
           channel_id,
           account_type: account_type || 'shared',
           login_id,
-          password,
+          password_encrypted: encryptedPassword,
+          password: null, // 旧カラムは使用しない
         })
         .select('id')
         .single();
 
       if (insertError || !newAccount) {
-        console.error('Account insert error:', insertError);
         return NextResponse.json(
           { error: 'アカウントの作成に失敗しました' },
           { status: 500 }
@@ -147,8 +151,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, account_id: accountId });
-  } catch (error) {
-    console.error('Account save error:', error);
+  } catch {
+    // エラー詳細はログに出さない（機密情報漏洩防止）
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

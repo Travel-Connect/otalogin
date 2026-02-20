@@ -27,6 +27,7 @@ export default async function FacilityPage({ params }: Props) {
           login_url: 'https://hotel.travel.rakuten.co.jp/extranet/login',
           status: 'unknown',
           last_checked_at: null,
+          last_error_code: null,
           last_error_message: null,
           account: null,
           field_definitions: [],
@@ -149,6 +150,7 @@ export default async function FacilityPage({ params }: Props) {
       login_url: channel.login_url,
       status: healthStatus?.status || 'unknown',
       last_checked_at: lastCheckedAt,
+      last_error_code: healthStatus?.last_error_code || null,
       last_error_message: healthStatus?.last_error_message || null,
       account: accountData,
       field_definitions: channelFieldDefinitions.map((fd) => ({

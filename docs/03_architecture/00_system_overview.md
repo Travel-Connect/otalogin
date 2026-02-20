@@ -44,16 +44,27 @@
 
 - **役割**: OTAサイトへの自動ログイン実行
 - **構成**:
-  - Background Service Worker: メッセージ受信、タブ管理
+  - Background Service Worker: メッセージ受信、タブ管理、ポーリング
   - Content Scripts: OTAサイトでのDOM操作、ログイン処理
   - externally_connectable: ポータルからのメッセージ受信
 - **重要**: 同一ウィンドウ内にタブを追加（`sender.tab.windowId` 使用）
+- **必須 Permissions**:
+  - `tabs`: タブ操作
+  - `storage`: 設定・トークン保存
+  - `activeTab`: アクティブタブへのアクセス
+  - `alarms`: ポーリング用タイマー
+- **URL パターン**: `host_permissions` と `content_scripts.matches` の両方に OTA ドメインを設定
 
 ### Web Portal (Next.js)
 
 - **役割**: ユーザーインターフェース、API提供
 - **デプロイ**: Vercel
 - **技術**: Next.js 14+ App Router, TypeScript
+- **拡張用 API**:
+  - `/api/extension/jobs`: pending ジョブ一覧取得
+  - `/api/extension/job/[jobId]`: ジョブ詳細・クレデンシャル取得
+  - `/api/extension/report`: ジョブ結果報告
+- **CORS**: 拡張用 API は全て CORS ヘッダーを付与（`apps/web/src/lib/extension/cors.ts`）
 
 ### Supabase
 
@@ -129,6 +140,21 @@
 ```
 
 ## セキュリティ設計
+
+### CORS 設計
+
+拡張用 API（`/api/extension/*`）は Chrome 拡張からの fetch 呼び出しを受け付けるため、
+CORS ヘッダーが必要。共通関数 `apps/web/src/lib/extension/cors.ts` を使用:
+
+```typescript
+// OPTIONS プリフライト
+export async function OPTIONS() {
+  return corsPreflightResponse();
+}
+
+// レスポンスに CORS ヘッダー追加
+return addCorsHeaders(NextResponse.json({ data }));
+```
 
 ### 認証情報の取り扱い
 

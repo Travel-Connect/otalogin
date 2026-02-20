@@ -7,7 +7,7 @@ export interface Channel {
   updated_at: string;
 }
 
-export type ChannelCode = 'rakuten' | 'jalan' | 'neppan';
+export type ChannelCode = 'rakuten' | 'jalan' | 'neppan' | 'ikyu' | 'skyticket' | 'churatoku' | 'ots' | 'rurubu';
 
 export interface ChannelHealthStatus {
   id: string;

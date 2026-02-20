@@ -40,6 +40,11 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [extensionConnected, setExtensionConnected] = useState<boolean | null>(null);
 
+  // 施設情報編集用の状態
+  const [facilityEditMode, setFacilityEditMode] = useState(false);
+  const [facilityForm, setFacilityForm] = useState({ name: facility.name, code: facility.code });
+  const [facilitySaving, setFacilitySaving] = useState(false);
+
   // 拡張機能の接続状態を確認
   const checkExtensionConnection = useCallback(async () => {
     const extensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
@@ -74,6 +79,36 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
   useEffect(() => {
     checkExtensionConnection();
   }, [checkExtensionConnection]);
+
+  // 施設情報を保存
+  const handleFacilitySave = async () => {
+    setFacilitySaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/facility/${facility.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: facilityForm.name,
+          code: facilityForm.code,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '保存に失敗しました');
+      }
+
+      setFacilityEditMode(false);
+      setSuccessMessage('施設情報を更新しました');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存に失敗しました');
+    } finally {
+      setFacilitySaving(false);
+    }
+  };
 
   // 編集用フォームの状態
   const [formData, setFormData] = useState<{
@@ -162,6 +197,10 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
         let errorMsg = data.error || '同期に失敗しました';
         if (data.error === 'No matching data found in master sheet') {
           errorMsg = 'マスタシートに該当するデータが見つかりません';
+        }
+        // 詳細があれば追加
+        if (data.details) {
+          errorMsg += ` (${data.details})`;
         }
         throw new Error(errorMsg);
       }
@@ -259,10 +298,74 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{facility.name}</h1>
-              <p className="text-sm text-gray-500">{facility.code}</p>
-            </div>
+            {facilityEditMode ? (
+              <div className="flex items-center gap-3 flex-1">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 w-16">施設名</label>
+                    <input
+                      type="text"
+                      value={facilityForm.name}
+                      onChange={(e) => setFacilityForm({ ...facilityForm, name: e.target.value })}
+                      className="input text-sm py-1 px-2"
+                      placeholder="施設名"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 w-16">施設コード</label>
+                    <input
+                      type="text"
+                      value={facilityForm.code}
+                      onChange={(e) => setFacilityForm({ ...facilityForm, code: e.target.value })}
+                      className="input text-sm py-1 px-2"
+                      placeholder="施設コード（スプレッドシートの施設IDと一致させてください）"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 ml-2">
+                  <button
+                    onClick={handleFacilitySave}
+                    disabled={facilitySaving || !facilityForm.name || !facilityForm.code}
+                    className="btn btn-primary text-xs py-1 px-3 disabled:opacity-50"
+                  >
+                    {facilitySaving ? '保存中...' : '保存'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFacilityEditMode(false);
+                      setFacilityForm({ name: facility.name, code: facility.code });
+                    }}
+                    disabled={facilitySaving}
+                    className="btn btn-secondary text-xs py-1 px-3 disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">{facility.name}</h1>
+                  <p className="text-sm text-gray-500">{facility.code}</p>
+                </div>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setFacilityForm({ name: facility.name, code: facility.code });
+                      setFacilityEditMode(true);
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    title="施設情報を編集"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -328,10 +431,19 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
                   {currentChannel.last_checked_at ? (
                     <span>
                       最終確認: {new Date(currentChannel.last_checked_at).toLocaleString('ja-JP')}
-                      {currentChannel.status === 'unhealthy' && currentChannel.last_error_message && (
-                        <span className="ml-2 text-red-500">
-                          ({currentChannel.last_error_message})
-                        </span>
+                      {currentChannel.status === 'unhealthy' && (
+                        <>
+                          {currentChannel.last_error_code && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-xs font-mono">
+                              {currentChannel.last_error_code}
+                            </span>
+                          )}
+                          {currentChannel.last_error_message && (
+                            <span className="ml-2 text-red-500">
+                              {currentChannel.last_error_message}
+                            </span>
+                          )}
+                        </>
                       )}
                     </span>
                   ) : (

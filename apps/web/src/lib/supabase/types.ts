@@ -1,5 +1,14 @@
 // Supabaseデータベース型定義
 
+// ErrorCode 型（shared パッケージと同期）
+export type ErrorCodeType =
+  | 'AUTH_FAILED'
+  | 'UI_CHANGED'
+  | 'TIMEOUT'
+  | 'NETWORK_ERROR'
+  | 'AGENT_OFFLINE'
+  | 'UNKNOWN';
+
 export interface Database {
   public: {
     Tables: {
@@ -32,6 +41,7 @@ export interface Database {
           account_type: 'shared' | 'override';
           login_id: string;
           password: string;
+          login_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -72,6 +82,7 @@ export interface Database {
           status: 'healthy' | 'unhealthy';
           last_success_at: string | null;
           last_error_at: string | null;
+          last_error_code: ErrorCodeType | null;
           last_error_message: string | null;
           created_at: string;
           updated_at: string;
@@ -95,6 +106,7 @@ export interface Database {
           status: 'pending' | 'in_progress' | 'success' | 'failed' | 'cancelled';
           started_at: string | null;
           completed_at: string | null;
+          error_code: ErrorCodeType | null;
           error_message: string | null;
           created_at: string;
           created_by: string | null;
@@ -129,6 +141,7 @@ export interface ChannelWithAccount {
   login_url: string;
   status: 'healthy' | 'unhealthy' | 'unknown';
   last_checked_at: string | null;
+  last_error_code: ErrorCodeType | null;
   last_error_message: string | null;
   account: AccountData | null;
   field_definitions: FieldDefinition[];

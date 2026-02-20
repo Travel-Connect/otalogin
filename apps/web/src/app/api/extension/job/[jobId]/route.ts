@@ -1,36 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { verifyDeviceToken } from '@/lib/extension/auth';
+import { getPlainPassword } from '@/lib/crypto/credentials';
+import { corsPreflightResponse, addCorsHeaders } from '@/lib/extension/cors';
 
 interface Props {
   params: Promise<{ jobId: string }>;
+}
+
+// CORS プリフライト
+export async function OPTIONS() {
+  return corsPreflightResponse();
 }
 
 export async function GET(request: NextRequest, { params }: Props) {
   try {
     const { jobId } = await params;
 
-    // デバイストークンで認証
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // デバイストークンで認証（共通関数を使用）
+    const authResult = await verifyDeviceToken(request);
+    if (!authResult.success) {
+      return addCorsHeaders(authResult.response);
     }
 
-    const _deviceToken = authHeader.slice(7); // TODO: use for device verification
     const supabase = await createServiceClient();
     if (!supabase) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+      return addCorsHeaders(NextResponse.json({ error: 'Database not configured' }, { status: 500 }));
     }
-
-    // デバイストークンの検証
-    // TODO: device_tokens テーブルで検証
-    // const { data: device } = await supabase
-    //   .from('device_tokens')
-    //   .select('id')
-    //   .eq('token', deviceToken)
-    //   .single();
-    // if (!device) {
-    //   return NextResponse.json({ error: 'Invalid device token' }, { status: 401 });
-    // }
 
     // ジョブ情報を取得
     const { data: job, error: jobError } = await supabase
@@ -50,45 +46,120 @@ export async function GET(request: NextRequest, { params }: Props) {
       .single();
 
     if (jobError || !job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+      return addCorsHeaders(NextResponse.json({ error: 'Job not found' }, { status: 404 }));
     }
 
-    // アカウント情報を取得
+    // 原子的に in_progress に更新（status === 'pending' の場合のみ）
+    const { data: claimedJob, error: claimError } = await supabase
+      .from('automation_jobs')
+      .update({ status: 'in_progress', started_at: new Date().toISOString() })
+      .eq('id', jobId)
+      .eq('status', 'pending')  // 重要: pending のジョブのみ更新
+      .select('id')
+      .single();
+
+    if (claimError || !claimedJob) {
+      // 更新0件 = 既に他でclaim済み or ステータスが pending でない
+      return addCorsHeaders(NextResponse.json(
+        { error: 'Job already claimed or not in pending status' },
+        { status: 409 }  // Conflict - クレデンシャルは返さない
+      ));
+    }
+
+    // アカウント情報を取得（claim成功後のみ）
     const { data: account, error: accountError } = await supabase
       .from('facility_accounts')
-      .select('login_id, password')
+      .select('id, login_id, password, password_encrypted, login_url')
       .eq('facility_id', job.facility_id)
       .eq('channel_id', job.channel_id)
       .single();
 
     if (accountError || !account) {
-      return NextResponse.json(
+      // アカウント情報がない場合はジョブを失敗状態に戻す
+      await supabase
+        .from('automation_jobs')
+        .update({
+          status: 'failed',
+          error_code: 'UNKNOWN',
+          error_message: 'Account not found for this facility/channel',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      return addCorsHeaders(NextResponse.json(
         { error: 'Account not found for this facility/channel' },
         { status: 404 }
-      );
+      ));
     }
 
-    // ジョブを in_progress に更新
-    await supabase
-      .from('automation_jobs')
-      .update({ status: 'in_progress', started_at: new Date().toISOString() })
-      .eq('id', jobId);
-
-    // 注意: パスワードは暗号化されている前提。実際には復号処理が必要
+    // チャネル情報を取得
     const channelData = job.channels as unknown as { code: string; login_url: string } | null;
-    return NextResponse.json({
+
+    // パスワードを復号（password_encrypted 優先、なければ旧 password を使用）
+    const plainPassword = getPlainPassword(
+      account.password_encrypted,
+      account.password
+    );
+
+    // OTP認証チャネル（パスワード不要）
+    const otpChannels = ['rurubu'];
+    const isOtpChannel = otpChannels.includes(channelData?.code || '');
+
+    if (!plainPassword && !isOtpChannel) {
+      // パスワードがない場合はジョブを失敗状態に（OTPチャネル以外）
+      await supabase
+        .from('automation_jobs')
+        .update({
+          status: 'failed',
+          error_code: 'UNKNOWN',
+          error_message: 'Password not configured',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+      return addCorsHeaders(NextResponse.json(
+        { error: 'Password not configured for this account' },
+        { status: 404 }
+      ));
+    }
+
+    // 追加フィールドを取得
+    const { data: fieldValues } = await supabase
+      .from('account_field_values')
+      .select(`
+        value,
+        field_definition:account_field_definitions (
+          field_key
+        )
+      `)
+      .eq('facility_account_id', account.id);
+
+    // extra_fields をオブジェクトに変換
+    const extraFields: Record<string, string> = {};
+    if (fieldValues) {
+      for (const fv of fieldValues) {
+        const fieldDef = fv.field_definition as unknown as { field_key: string } | null;
+        if (fieldDef?.field_key) {
+          extraFields[fieldDef.field_key] = fv.value;
+        }
+      }
+    }
+
+    // 施設固有のログインURL（facility_accounts.login_url）があればそちらを優先
+    const loginUrl = account.login_url || channelData?.login_url;
+    return addCorsHeaders(NextResponse.json({
       job_id: job.id,
       channel_code: channelData?.code,
-      login_url: channelData?.login_url,
+      login_url: loginUrl,
       login_id: account.login_id,
-      password: account.password, // TODO: 復号処理
-      extra_fields: {}, // TODO: 追加フィールドの取得
-    });
+      password: plainPassword || '', // 復号済みパスワード（OTPチャネルは空文字）
+      extra_fields: extraFields,
+    }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
+    return addCorsHeaders(NextResponse.json(
       { error: 'Failed to get job details', details: message },
       { status: 500 }
-    );
+    ));
   }
 }
