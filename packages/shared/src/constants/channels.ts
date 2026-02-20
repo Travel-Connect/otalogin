@@ -204,12 +204,13 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
     success_indicator: '[data-testid="search-criteria-input-field"], [data-element-name="ycs-property-search-search-field"]',
     // OTP入力に時間がかかるため5分に延長
     pending_timeout_ms: 300000,
-    // ログイン後に施設IDを入力してEnterで選択
+    // ログイン後に施設IDを入力してEnterで検索→結果行をクリック
     post_login_action: {
       type: 'select_facility',
       search_input: '[data-element-name="ycs-property-search-search-field"] input, [data-testid="search-criteria-input-field"] input, input[type="search"], input[placeholder*="検索"], input[placeholder*="search"]',
       submit_with_enter: true,
-      row_selector: '[data-element-name*="property"], [data-testid*="property"], .property-card',
+      // テーブルのデータ行（ヘッダーやナビを除外）
+      row_selector: 'tbody tr, table tr:not(:first-child), [role="row"]:not([role="columnheader"]), [data-testid*="property-row"], [data-element-name*="property-row"]',
       id_column_index: 0,
       id_key: 'rurubu_facility_code',
     },

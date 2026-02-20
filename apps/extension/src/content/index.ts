@@ -348,19 +348,48 @@ async function selectFacility(
 
     // 検索結果の行を探してクリック
     const resultRows = await waitForElements(action.row_selector, 5000);
+    console.log('[OTALogin] Found', resultRows?.length || 0, 'result rows with selector:', action.row_selector);
+
     if (resultRows && resultRows.length > 0) {
-      // 最初の結果行をクリック（検索で絞り込み済みのため）
-      const targetRow = resultRows[0];
-      console.log('[OTALogin] Clicking search result row:', (targetRow as HTMLElement).textContent?.trim().substring(0, 60));
-      clickElement(targetRow as HTMLElement);
+      // 施設IDを含む行を探す（検索で1件に絞り込み済みなら最初の行）
+      let targetRow = resultRows[0];
+      for (const row of resultRows) {
+        if ((row as HTMLElement).textContent?.includes(facilityId)) {
+          targetRow = row;
+          break;
+        }
+      }
+
+      console.log('[OTALogin] Target row text:', (targetRow as HTMLElement).textContent?.trim().substring(0, 80));
+
+      // 行内のリンク、ボタン、クリッカブル要素を優先的にクリック
+      const clickable = targetRow.querySelector('a, button, [role="link"], [class*="chevron"], svg') as HTMLElement | null;
+      if (clickable) {
+        console.log('[OTALogin] Clicking element inside row:', clickable.tagName, clickable.className?.substring(0, 40));
+        clickElement(clickable);
+      } else {
+        // 行自体をクリック
+        console.log('[OTALogin] Clicking row element itself');
+        clickElement(targetRow as HTMLElement);
+      }
       await sleep(2000);
     } else {
-      console.log('[OTALogin] No search result rows found, trying direct link/button click');
-      // 行が見つからない場合、テーブル内のリンクやボタンを探す
-      const link = document.querySelector('table a, [role="row"] a, tr a, [class*="row"] a') as HTMLElement | null;
-      if (link) {
-        clickElement(link);
-        await sleep(2000);
+      // row_selectorでマッチしない場合のフォールバック
+      // 施設コードを含む要素を直接探す
+      console.log('[OTALogin] No rows found, searching for element containing facility ID:', facilityId);
+      const allElements = document.querySelectorAll('td, [role="cell"], [role="gridcell"], [class*="cell"]');
+      for (const el of allElements) {
+        if ((el as HTMLElement).textContent?.trim() === facilityId) {
+          // この要素の親行をクリック
+          const parentRow = el.closest('tr, [role="row"]') as HTMLElement | null;
+          if (parentRow) {
+            const link = parentRow.querySelector('a, button') as HTMLElement | null;
+            console.log('[OTALogin] Found facility cell, clicking parent row');
+            clickElement(link || parentRow);
+            await sleep(2000);
+            break;
+          }
+        }
       }
     }
     return { success: true };
