@@ -328,7 +328,7 @@ async function selectFacility(
     await inputPromise;
   }
 
-  // Enterキーで送信するモード（るるぶ等: 検索入力後にEnterで施設選択完了）
+  // Enterキーで検索を実行するモード（るるぶ等）
   if (action.submit_with_enter && searchInput) {
     console.log('[OTALogin] Submitting facility search with Enter key');
     await sleep(300);
@@ -341,8 +341,28 @@ async function selectFacility(
     (searchInput as HTMLElement).dispatchEvent(
       new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true })
     );
-    // ページ遷移を待つ
+
+    // 検索結果が表示されるまで待機し、結果の行をクリック
+    console.log('[OTALogin] Waiting for search results after Enter...');
     await sleep(2000);
+
+    // 検索結果の行を探してクリック
+    const resultRows = await waitForElements(action.row_selector, 5000);
+    if (resultRows && resultRows.length > 0) {
+      // 最初の結果行をクリック（検索で絞り込み済みのため）
+      const targetRow = resultRows[0];
+      console.log('[OTALogin] Clicking search result row:', (targetRow as HTMLElement).textContent?.trim().substring(0, 60));
+      clickElement(targetRow as HTMLElement);
+      await sleep(2000);
+    } else {
+      console.log('[OTALogin] No search result rows found, trying direct link/button click');
+      // 行が見つからない場合、テーブル内のリンクやボタンを探す
+      const link = document.querySelector('table a, [role="row"] a, tr a, [class*="row"] a') as HTMLElement | null;
+      if (link) {
+        clickElement(link);
+        await sleep(2000);
+      }
+    }
     return { success: true };
   }
 
