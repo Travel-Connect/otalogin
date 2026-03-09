@@ -1,14 +1,63 @@
 import { redirect, notFound } from 'next/navigation';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDetail } from './FacilityDetail';
+import { resolveChannelCode } from '@otalogin/shared';
 import type { FacilityDetailData, ChannelWithAccount } from '@/lib/supabase/types';
 
 interface Props {
   params: Promise<{ facilityId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function FacilityPage({ params }: Props) {
+/**
+ * ディープリンク対応:
+ *   ?channelId=<uuid>       → チャネルUUIDで直接指定（最優先）
+ *   ?channel=<code|alias>   → チャネルコード or エイリアスで指定
+ *   ?OTA=<alias>            → OTAエイリアスで指定（互換）
+ *   ?run=1                  → 自動ログイン実行
+ */
+function resolveDeepLinkChannel(
+  query: { [key: string]: string | string[] | undefined },
+  channels: Array<{ id: string; code: string }>
+): string | undefined {
+  // 1. channelId（UUID直接指定）が最優先
+  const channelId = typeof query.channelId === 'string' ? query.channelId.trim() : undefined;
+  if (channelId) {
+    const found = channels.find(ch => ch.id === channelId);
+    if (found) return found.code;
+  }
+
+  // 2. channel パラメータ（code or alias）
+  const channelParam = typeof query.channel === 'string' ? query.channel.trim() : undefined;
+  if (channelParam) {
+    // まずUUIDとして探す
+    const byId = channels.find(ch => ch.id === channelParam);
+    if (byId) return byId.code;
+    // code / alias として解決
+    const resolved = resolveChannelCode(channelParam);
+    if (resolved && channels.some(ch => ch.code === resolved)) return resolved;
+  }
+
+  // 3. OTA パラメータ（alias互換）
+  const otaParam = typeof query.OTA === 'string' ? query.OTA.trim()
+    : typeof query.ota === 'string' ? query.ota.trim()
+    : undefined;
+  if (otaParam) {
+    const resolved = resolveChannelCode(otaParam);
+    if (resolved && channels.some(ch => ch.code === resolved)) return resolved;
+  }
+
+  return undefined;
+}
+
+export default async function FacilityPage({ params, searchParams }: Props) {
   const { facilityId } = await params;
+  const query = await searchParams;
+
+  // ディープリンクの run=1 判定
+  const autoRun = query.run === '1';
+  // open=public: 公開ページを開く
+  const openPublic = query.open === 'public';
 
   // Supabase未設定の場合は開発モードとして動作
   const isDevelopmentMode = !isSupabaseConfigured();
@@ -47,47 +96,42 @@ export default async function FacilityPage({ params }: Props) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect('/login');
+    // 未ログイン時は returnTo 付きでリダイレクト
+    const currentPath = `/facility/${facilityId}`;
+    const searchParamsStr = new URLSearchParams(
+      Object.entries(query).reduce((acc, [k, v]) => {
+        if (typeof v === 'string') acc[k] = v;
+        return acc;
+      }, {} as Record<string, string>)
+    ).toString();
+    const returnTo = searchParamsStr ? `${currentPath}?${searchParamsStr}` : currentPath;
+    redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
-  // 施設情報を取得
-  const { data: facility, error: facilityError } = await supabase
-    .from('facilities')
-    .select('*')
-    .eq('id', facilityId)
-    .single();
+  // 独立クエリを並列実行（レイテンシ削減）
+  const [
+    { data: facility, error: facilityError },
+    { data: channels },
+    { data: accounts },
+    { data: healthStatuses },
+    { data: fieldDefinitions },
+    { data: userRole },
+  ] = await Promise.all([
+    supabase.from('facilities').select('*').eq('id', facilityId).single(),
+    supabase.from('channels').select('*').order('name'),
+    supabase.from('facility_accounts').select('*').eq('facility_id', facilityId).eq('account_type', 'shared').is('user_email', null),
+    supabase.from('channel_health_status').select('*').eq('facility_id', facilityId),
+    supabase.from('account_field_definitions').select('*').order('display_order'),
+    supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
+  ]);
 
   if (facilityError || !facility) {
     notFound();
   }
 
-  // チャネル一覧を取得
-  const { data: channels } = await supabase
-    .from('channels')
-    .select('*')
-    .order('name');
+  const isAdmin = userRole?.role === 'admin';
 
-  // 施設のアカウント情報を取得（共有クレデンシャルのみ、user_email IS NULL）
-  const { data: accounts } = await supabase
-    .from('facility_accounts')
-    .select('*')
-    .eq('facility_id', facilityId)
-    .eq('account_type', 'shared')
-    .is('user_email', null);
-
-  // ヘルスステータスを取得
-  const { data: healthStatuses } = await supabase
-    .from('channel_health_status')
-    .select('*')
-    .eq('facility_id', facilityId);
-
-  // フィールド定義を取得
-  const { data: fieldDefinitions } = await supabase
-    .from('account_field_definitions')
-    .select('*')
-    .order('display_order');
-
-  // フィールド値を取得
+  // フィールド値を取得（accountsに依存）
   const accountIds = accounts?.map((a) => a.id) || [];
   const { data: fieldValues } = accountIds.length > 0
     ? await supabase
@@ -95,15 +139,6 @@ export default async function FacilityPage({ params }: Props) {
         .select('*')
         .in('facility_account_id', accountIds)
     : { data: [] };
-
-  // ユーザーの権限を確認
-  const { data: userRole } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', user.id)
-    .single();
-
-  const isAdmin = userRole?.role === 'admin';
 
   // チャネルごとにデータを整形
   const channelsWithAccount: ChannelWithAccount[] = (channels || []).map((channel) => {
@@ -132,6 +167,8 @@ export default async function FacilityPage({ params }: Props) {
             value: fv.value,
           };
         }),
+        public_url_query: account.public_url_query as Record<string, string> | null,
+        admin_url_query: account.admin_url_query as Record<string, string> | null,
       };
     }
 
@@ -173,5 +210,19 @@ export default async function FacilityPage({ params }: Props) {
     channels: channelsWithAccount,
   };
 
-  return <FacilityDetail facility={facilityData} isAdmin={isAdmin} />;
+  // ディープリンクのチャネル解決
+  const deepLinkChannel = resolveDeepLinkChannel(
+    query,
+    channelsWithAccount.map(ch => ({ id: ch.id, code: ch.code }))
+  );
+
+  return (
+    <FacilityDetail
+      facility={facilityData}
+      isAdmin={isAdmin}
+      initialChannel={deepLinkChannel}
+      autoRun={autoRun && !!deepLinkChannel}
+      openPublic={openPublic && !!deepLinkChannel}
+    />
+  );
 }

@@ -6,9 +6,11 @@
 import type {
   ExtensionMessage,
   DispatchLoginPayload,
+  SyncUrlQueryPayload,
   ExtensionResponse,
   JobCredentials,
 } from '@otalogin/shared';
+import { extractAndSanitizeQuery } from '@otalogin/shared';
 
 // 設定
 const CONFIG = {
@@ -337,6 +339,12 @@ async function handleExternalMessage(
         sender
       );
 
+    case 'SYNC_URL_QUERY':
+      return await handleSyncUrlQuery(
+        message.payload as SyncUrlQueryPayload,
+        sender
+      );
+
     default:
       return { success: false, error: 'Unknown message type' };
   }
@@ -465,6 +473,43 @@ async function handleDispatchLogin(
 }
 
 /**
+ * アクティブタブのURLクエリパラメータを取得してサニタイズ
+ */
+async function handleSyncUrlQuery(
+  payload: SyncUrlQueryPayload,
+  sender: chrome.runtime.MessageSender
+): Promise<ExtensionResponse> {
+  try {
+    const windowId = sender.tab?.windowId;
+    if (!windowId) {
+      return { success: false, error: 'ウィンドウIDを特定できません' };
+    }
+
+    // 同一ウィンドウのアクティブタブを取得
+    const [activeTab] = await chrome.tabs.query({ active: true, windowId });
+    if (!activeTab?.url) {
+      return { success: false, error: 'アクティブタブのURLを取得できません' };
+    }
+
+    const sanitized = extractAndSanitizeQuery(activeTab.url, payload.allowed_domains);
+    if (sanitized === null) {
+      return {
+        success: false,
+        error: 'アクティブタブのドメインが許可リストに含まれていません',
+      };
+    }
+
+    const data = Object.keys(sanitized).length > 0 ? sanitized : null;
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * ジョブ資格情報取得の結果
  */
 type FetchCredentialsResult =
@@ -535,6 +580,7 @@ function waitForTabLoad(tabId: number): Promise<void> {
     }, 30000);
   });
 }
+
 
 /**
  * 内部メッセージ（Content Script / Popup から）のハンドラ

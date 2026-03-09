@@ -4,21 +4,16 @@ import { CreateJobSchema } from '@otalogin/shared';
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    // Supabaseクライアント作成とリクエストボディ解析を並列実行
+    const [supabase, body] = await Promise.all([
+      createClient(),
+      request.json(),
+    ]);
+
     if (!supabase) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
 
-    // ユーザー認証確認
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
     const parsed = CreateJobSchema.safeParse({
       ...body,
       job_type: 'manual_login',
@@ -32,6 +27,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { facility_id, channel_id } = parsed.data;
+
+    // ユーザー認証確認
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // ジョブを作成
     const { data: job, error } = await supabase

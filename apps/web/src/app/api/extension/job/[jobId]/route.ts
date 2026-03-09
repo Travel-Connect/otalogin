@@ -28,59 +28,69 @@ export async function GET(request: NextRequest, { params }: Props) {
       return addCorsHeaders(NextResponse.json({ error: 'Database not configured' }, { status: 500 }));
     }
 
-    // ジョブ情報を取得（created_by もリンカーンのユーザー別クレデンシャルに必要）
-    const { data: job, error: jobError } = await supabase
-      .from('automation_jobs')
-      .select(`
-        id,
-        facility_id,
-        channel_id,
-        job_type,
-        status,
-        created_by,
-        channels (
-          code,
-          login_url
-        )
-      `)
-      .eq('id', jobId)
-      .single();
+    // ジョブ取得とclaim を同時に実行（claim は pending→in_progress の原子更新）
+    const [jobResult, claimResult] = await Promise.all([
+      supabase
+        .from('automation_jobs')
+        .select(`
+          id,
+          facility_id,
+          channel_id,
+          job_type,
+          status,
+          created_by,
+          channels (
+            code,
+            login_url
+          )
+        `)
+        .eq('id', jobId)
+        .single(),
+      supabase
+        .from('automation_jobs')
+        .update({ status: 'in_progress', started_at: new Date().toISOString() })
+        .eq('id', jobId)
+        .eq('status', 'pending')
+        .select('id')
+        .single(),
+    ]);
+
+    const { data: job, error: jobError } = jobResult;
+    const { data: claimedJob, error: claimError } = claimResult;
 
     if (jobError || !job) {
       return addCorsHeaders(NextResponse.json({ error: 'Job not found' }, { status: 404 }));
     }
 
-    // 原子的に in_progress に更新（status === 'pending' の場合のみ）
-    const { data: claimedJob, error: claimError } = await supabase
-      .from('automation_jobs')
-      .update({ status: 'in_progress', started_at: new Date().toISOString() })
-      .eq('id', jobId)
-      .eq('status', 'pending')  // 重要: pending のジョブのみ更新
-      .select('id')
-      .single();
-
     if (claimError || !claimedJob) {
-      // 更新0件 = 既に他でclaim済み or ステータスが pending でない
       return addCorsHeaders(NextResponse.json(
         { error: 'Job already claimed or not in pending status' },
-        { status: 409 }  // Conflict - クレデンシャルは返さない
+        { status: 409 }
       ));
     }
 
-    // チャネル情報を取得（アカウント検索前に必要）
+    // チャネル情報を取得
     const channelData = job.channels as unknown as { code: string; login_url: string } | null;
 
-    // アカウント情報を取得（claim成功後のみ）
-    // リンカーンの場合: ジョブ作成者のメールアドレスでユーザー別クレデンシャルを検索
-    let account: { id: string; login_id: string; password: string; password_encrypted: string | null; login_url: string | null } | null = null;
+    // アカウント情報を取得（リンカーン: ユーザー別 → 共有フォールバック、他: 共有）
+    type AccountRow = { id: string; login_id: string; password: string; password_encrypted: string | null; login_url: string | null };
+    let account: AccountRow | null = null;
 
     if (channelData?.code === 'lincoln' && job.created_by) {
-      // ジョブ作成者のメールアドレスを取得
-      const { data: userData } = await supabase.auth.admin.getUserById(job.created_by);
-      const userEmail = userData?.user?.email;
+      // リンカーン: ユーザー情報取得と共有クレデンシャルを並列取得
+      const [userDataResult, sharedResult] = await Promise.all([
+        supabase.auth.admin.getUserById(job.created_by),
+        supabase
+          .from('facility_accounts')
+          .select('id, login_id, password, password_encrypted, login_url')
+          .eq('facility_id', job.facility_id)
+          .eq('channel_id', job.channel_id)
+          .is('user_email', null)
+          .maybeSingle(),
+      ]);
 
+      const userEmail = userDataResult.data?.user?.email;
       if (userEmail) {
-        // ユーザー別クレデンシャルを検索
         const { data: userAccount } = await supabase
           .from('facility_accounts')
           .select('id, login_id, password, password_encrypted, login_url')
@@ -88,25 +98,11 @@ export async function GET(request: NextRequest, { params }: Props) {
           .eq('channel_id', job.channel_id)
           .eq('user_email', userEmail)
           .maybeSingle();
-
-        if (userAccount) {
-          account = userAccount;
-        }
-      }
-
-      // フォールバック: 共有クレデンシャル
-      if (!account) {
-        const { data: sharedAccount } = await supabase
-          .from('facility_accounts')
-          .select('id, login_id, password, password_encrypted, login_url')
-          .eq('facility_id', job.facility_id)
-          .eq('channel_id', job.channel_id)
-          .is('user_email', null)
-          .maybeSingle();
-        account = sharedAccount;
+        account = userAccount || sharedResult.data;
+      } else {
+        account = sharedResult.data;
       }
     } else {
-      // 他チャネル: 共有クレデンシャル
       const { data: sharedAccount } = await supabase
         .from('facility_accounts')
         .select('id, login_id, password, password_encrypted, login_url')

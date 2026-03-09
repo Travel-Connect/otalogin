@@ -1,5 +1,7 @@
 # システム全体像
 
+最終更新: 2026-03-09
+
 ## アーキテクチャ概要
 
 ```
@@ -17,7 +19,7 @@
          │                    ▼
          │            ┌───────────────┐
          │            │    Vercel     │
-         │ WebSocket/ │  ┌─────────┐  │
+         │            │  ┌─────────┐  │
          └────────────┼─►│ Next.js │  │
            polling    │  │   App   │  │
                       │  │ Router  │  │
@@ -44,7 +46,7 @@
 
 - **役割**: OTAサイトへの自動ログイン実行
 - **構成**:
-  - Background Service Worker: メッセージ受信、タブ管理、ポーリング
+  - Background Service Worker: メッセージ受信、タブ管理、ポーリング（1分間隔）
   - Content Scripts: OTAサイトでのDOM操作、ログイン処理
   - externally_connectable: ポータルからのメッセージ受信
 - **重要**: 同一ウィンドウ内にタブを追加（`sender.tab.windowId` 使用）
@@ -54,6 +56,21 @@
   - `activeTab`: アクティブタブへのアクセス
   - `alarms`: ポーリング用タイマー
 - **URL パターン**: `host_permissions` と `content_scripts.matches` の両方に OTA ドメインを設定
+- **対応ドメイン**:
+  - `*.travel.rakuten.com`, `*.account.rakuten.com` (楽天)
+  - `*.jalan.net` (じゃらん)
+  - `*.hotel-story.ne.jp` (ねっぱん)
+  - `*.ikyu.com` (一休)
+  - `*.skyticket.jp` (スカイチケット)
+  - `*.churatoku.net` (ちゅらとく)
+  - `*.otsinternational.jp` (OTS)
+  - `*.tl-lincoln.net` (リンカーン)
+  - `*.jtb.co.jp` (るるぶ)
+- **ログインパターン**:
+  - シングルステップ: セレクタでID/PW入力→submit
+  - マルチステップ: login_stepsで段階的にフォーム入力
+  - ポストログインアクション: 施設検索→行クリック
+  - 強制ログイン: 二重ログイン検出→強制ログインボタン自動クリック
 
 ### Web Portal (Next.js)
 
@@ -64,6 +81,12 @@
   - `/api/extension/jobs`: pending ジョブ一覧取得
   - `/api/extension/job/[jobId]`: ジョブ詳細・クレデンシャル取得
   - `/api/extension/report`: ジョブ結果報告
+  - `/api/extension/dispatch`: ログインジョブ作成
+- **その他 API**:
+  - `/api/master-sync`: マスタPWシート同期
+  - `/api/cron/healthcheck`: Health Check Cron
+  - `/api/facility/account`: アカウント情報CRUD
+  - `/api/facility/[facilityId]`: 施設情報CRUD
 - **CORS**: 拡張用 API は全て CORS ヘッダーを付与（`apps/web/src/lib/extension/cors.ts`）
 
 ### Supabase
@@ -72,17 +95,20 @@
 - **テーブル**:
   - facilities: 施設情報
   - channels: OTAチャネル定義
-  - facility_accounts: アカウント情報
+  - facility_accounts: アカウント情報（user_emailでユーザー別対応）
   - automation_jobs: ジョブ管理
   - channel_health_status: 状態管理
+  - user_roles: ユーザー権限管理
 - **認証**: メール + パスワード
 - **RLS**: 有効化必須
+- **暗号化**: AES-256-GCM（CREDENTIAL_ENCRYPTION_KEY）
 
 ### Google Sheets
 
 - **役割**: 共通マスタPWシートの参照元
 - **認証**: OAuth 2.0 (Refresh Token)
-- **同期**: チャネル単位で手動実行
+- **同期**: 施設単位で手動実行（admin限定）
+- **シート構成**: A:L列（L列はリンカーン用ユーザーメール）
 
 ### Vercel Cron
 
@@ -129,14 +155,30 @@
 2. API creates jobs for all shared accounts
    API ──INSERT jobs──► Supabase
                         │
-3. Extension polls for pending jobs (or receives push)
-   Extension ──GET /api/extension/pending──► API
+3. Extension polls for pending jobs (1min interval)
+   Extension ──GET /api/extension/jobs──► API
                         │
 4. Extension executes each job
    (Same as manual login flow)
                         │
 5. Health status updated
    API ──UPDATE channel_health_status──► Supabase
+```
+
+### マスタPW同期
+
+```
+1. Admin clicks "マスタPWと同期" on Portal
+   Portal ──POST /api/master-sync──► API
+                                      │
+2. API fetches data from Google Sheets
+   API ──Google Sheets API──► Sheets
+                                │
+3. API upserts facility_accounts  │
+   API ──INSERT/UPDATE──► Supabase
+                                │
+4. Lincoln: per-user credentials
+   L列メール → facility_accounts.user_email
 ```
 
 ## セキュリティ設計
@@ -162,6 +204,9 @@ return addCorsHeaders(NextResponse.json({ data }));
 - **API経由での取得**: jobId 方式
   - ポータル → 拡張に ID/PW を直送しない
   - 拡張が jobId で API から取得
+- **DB保存**: AES-256-GCM で暗号化
+  - フォーマット: `enc_v1:<iv_base64>:<ciphertext_base64>:<tag_base64>`
+  - レイジーマイグレーション: 平文で保存されたものは読み取り時にそのまま返却
 
 ### ログ・成果物
 
@@ -172,5 +217,5 @@ return addCorsHeaders(NextResponse.json({ data }));
 ### RLS（Row Level Security）
 
 - 全テーブルで RLS 有効化
-- MVP: 全ユーザーが全施設を閲覧・実行可能
+- 全ユーザーが全施設を閲覧・ログイン実行可能
 - credential 更新・同期は role=admin のみ

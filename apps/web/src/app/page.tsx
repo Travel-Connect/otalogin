@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityList } from '@/components/FacilityList';
 
@@ -32,6 +33,9 @@ export default async function HomePage() {
                 開発モード（Supabase未設定）
               </span>
             )}
+            <Link href="/shortcuts" className="btn btn-secondary text-sm">
+              ショートカット
+            </Link>
             <form action="/api/auth/signout" method="POST">
               <button type="submit" className="btn btn-secondary text-sm">
                 ログアウト

@@ -43,6 +43,8 @@ export interface Database {
           password: string;
           login_url: string | null;
           user_email: string | null;
+          public_url_query: Record<string, string> | null;
+          admin_url_query: Record<string, string> | null;
           created_at: string;
           updated_at: string;
         };
@@ -113,6 +115,22 @@ export interface Database {
           created_by: string | null;
         };
       };
+      user_shortcuts: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          facility_id: string;
+          channel_id: string;
+          action_type: 'login' | 'public';
+          slot_no: number | null;
+          enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['user_shortcuts']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Database['public']['Tables']['user_shortcuts']['Insert']>;
+      };
     };
   };
 }
@@ -154,6 +172,8 @@ export interface AccountData {
   login_id: string;
   password: string;
   field_values: FieldValue[];
+  public_url_query: Record<string, string> | null;
+  admin_url_query: Record<string, string> | null;
 }
 
 export interface FieldDefinition {
@@ -170,4 +190,22 @@ export interface FieldValue {
   field_definition_id: string;
   field_key: string;
   value: string;
+}
+
+// ショートカット定義（JOIN済み）
+export interface ShortcutWithDetails {
+  id: string;
+  user_id: string;
+  name: string;
+  facility_id: string;
+  channel_id: string;
+  action_type: 'login' | 'public';
+  slot_no: number | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  facility_name: string;
+  facility_code: string;
+  channel_name: string;
+  channel_code: string;
 }

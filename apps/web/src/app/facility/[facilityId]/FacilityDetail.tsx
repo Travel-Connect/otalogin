@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { StatusLamp } from '@/components/StatusLamp';
 import { PasswordField } from '@/components/PasswordField';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import type { FacilityDetailData, ChannelWithAccount } from '@/lib/supabase/types';
+import type { FacilityDetailData, ChannelWithAccount, AccountData } from '@/lib/supabase/types';
+import { buildFullUrl } from '@otalogin/shared';
 
 // Chrome拡張の型定義
 declare global {
@@ -24,13 +25,23 @@ interface ExtensionResponse {
 interface Props {
   facility: FacilityDetailData;
   isAdmin: boolean;
+  /** ディープリンクで指定されたチャネルコード（解決済み） */
+  initialChannel?: string;
+  /** ディープリンクで run=1 が指定された場合 true */
+  autoRun?: boolean;
+  /** ディープリンクで open=public が指定された場合 true */
+  openPublic?: boolean;
 }
 
-export function FacilityDetail({ facility, isAdmin }: Props) {
+export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, openPublic }: Props) {
   const router = useRouter();
-  const [activeChannel, setActiveChannel] = useState<string>(
-    facility.channels[0]?.code || ''
-  );
+  // ディープリンク指定があればそのチャネルを初期選択
+  const resolvedInitialChannel = initialChannel && facility.channels.some(ch => ch.code === initialChannel)
+    ? initialChannel
+    : facility.channels[0]?.code || '';
+  const [activeChannel, setActiveChannel] = useState<string>(resolvedInitialChannel);
+  const channelDetailRef = useRef<HTMLDivElement>(null);
+  const autoRunTriggered = useRef(false);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [syncingChannel, setSyncingChannel] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -79,6 +90,37 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
   useEffect(() => {
     checkExtensionConnection();
   }, [checkExtensionConnection]);
+
+  // ディープリンク: チャネル詳細エリアにスクロール
+  useEffect(() => {
+    if (initialChannel && channelDetailRef.current) {
+      channelDetailRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [initialChannel]);
+
+  // ディープリンク: run=1 の場合に自動ログイン実行
+  useEffect(() => {
+    if (!autoRun || autoRunTriggered.current) return;
+    if (extensionConnected === null) return; // 接続チェック中は待機
+    autoRunTriggered.current = true;
+    // 少し遅延させてUIが描画された後に実行
+    const timer = setTimeout(() => {
+      handleLogin();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [autoRun, extensionConnected]); // handleLogin is intentionally omitted to run only once
+
+  // ディープリンク: open=public の場合に公開ページURLを開く
+  const openPublicTriggered = useRef(false);
+  useEffect(() => {
+    if (!openPublic || openPublicTriggered.current) return;
+    openPublicTriggered.current = true;
+    const ch = facility.channels.find(c => c.code === initialChannel);
+    if (!ch) return;
+    const query = ch.account?.public_url_query;
+    const fullUrl = buildFullUrl(ch.login_url, query ?? null);
+    window.open(fullUrl, '_blank');
+  }, [openPublic, initialChannel, facility.channels]);
 
   // 施設情報を保存
   const handleFacilitySave = async () => {
@@ -221,25 +263,27 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
     setIsLoggingIn(true);
 
     try {
-      // 拡張機能の接続を確認
-      const isConnected = await checkExtensionConnection();
-      if (!isConnected) {
-        throw new Error('Chrome拡張が接続されていません。拡張機能をインストールしてページを再読み込みしてください。');
-      }
-
       // アカウント情報が設定されているか確認
       if (!currentChannel.account) {
         throw new Error('アカウント情報が設定されていません。先にアカウントを設定してください。');
       }
 
-      const response = await fetch('/api/extension/dispatch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          facility_id: facility.id,
-          channel_id: currentChannel.id,
+      // 拡張接続確認とジョブ作成を並列実行
+      const [isConnected, response] = await Promise.all([
+        checkExtensionConnection(),
+        fetch('/api/extension/dispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            facility_id: facility.id,
+            channel_id: currentChannel.id,
+          }),
         }),
-      });
+      ]);
+
+      if (!isConnected) {
+        throw new Error('Chrome拡張が接続されていません。拡張機能をインストールしてページを再読み込みしてください。');
+      }
 
       if (!response.ok) {
         const data = await response.json();
@@ -419,7 +463,7 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
 
         {/* チャネル詳細 */}
         {currentChannel && (
-          <div className="card">
+          <div ref={channelDetailRef} className={`card${initialChannel === activeChannel ? ' ring-2 ring-primary-500 ring-offset-2' : ''}`}>
             <div className="flex justify-between items-start mb-6">
               <div>
                 <div className="flex items-center gap-3">
@@ -509,6 +553,256 @@ export function FacilityDetail({ facility, isAdmin }: Props) {
   );
 }
 
+// URLクエリ表示・編集コンポーネント
+function UrlQuerySection({
+  account,
+  channel,
+  isAdmin,
+}: {
+  account: AccountData;
+  channel: ChannelWithAccount;
+  isAdmin: boolean;
+}) {
+  const router = useRouter();
+  const [editingKind, setEditingKind] = useState<'public' | 'admin' | null>(null);
+  const [queryForm, setQueryForm] = useState<{ key: string; value: string }[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const startEdit = (kind: 'public' | 'admin') => {
+    const query = kind === 'public' ? account.public_url_query : account.admin_url_query;
+    setQueryForm(
+      query
+        ? Object.entries(query).map(([key, value]) => ({ key, value }))
+        : [{ key: '', value: '' }]
+    );
+    setEditingKind(kind);
+    setError(null);
+    setSuccess(null);
+  };
+
+  const handleSaveQuery = async () => {
+    if (!editingKind) return;
+    setSaving(true);
+    setError(null);
+
+    const filtered = queryForm.filter((p) => p.key.trim() !== '');
+    const query = filtered.length > 0
+      ? Object.fromEntries(filtered.map((p) => [p.key.trim(), p.value]))
+      : null;
+
+    try {
+      const res = await fetch('/api/facility/account/url-query', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: account.id,
+          kind: editingKind,
+          query,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || '保存に失敗しました');
+      }
+      setEditingKind(null);
+      setSuccess(`${editingKind === 'public' ? '公開' : '管理'}URLクエリを保存しました`);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSync = async (kind: 'public' | 'admin') => {
+    setSyncing(true);
+    setError(null);
+    setSuccess(null);
+
+    const extensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
+    if (!extensionId || typeof chrome === 'undefined' || !chrome.runtime) {
+      setError('Chrome拡張が接続されていません');
+      setSyncing(false);
+      return;
+    }
+
+    // login_url からドメインを抽出
+    const loginDomain = (() => {
+      try { return new URL(channel.login_url).hostname; } catch { return ''; }
+    })();
+    if (!loginDomain) {
+      setError('チャネルのログインURLが無効です');
+      setSyncing(false);
+      return;
+    }
+
+    chrome.runtime.sendMessage(
+      extensionId,
+      {
+        type: 'SYNC_URL_QUERY',
+        payload: { kind, allowed_domains: [loginDomain] },
+      },
+      async (rawRes) => {
+        const res = rawRes as ExtensionResponse | undefined;
+        if (chrome.runtime.lastError || !res?.success) {
+          setError(res?.error || 'URLクエリの取得に失敗しました');
+          setSyncing(false);
+          return;
+        }
+
+        const query = res.data as Record<string, string> | null;
+
+        try {
+          const apiRes = await fetch('/api/facility/account/url-query', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              account_id: account.id,
+              kind,
+              query,
+            }),
+          });
+          if (!apiRes.ok) {
+            const data = await apiRes.json();
+            throw new Error(data.error || '保存に失敗しました');
+          }
+          setSuccess(`アクティブタブから${kind === 'public' ? '公開' : '管理'}URLクエリを同期しました`);
+          router.refresh();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : '保存に失敗しました');
+        } finally {
+          setSyncing(false);
+        }
+      }
+    );
+  };
+
+  const renderQueryDisplay = (kind: 'public' | 'admin', label: string) => {
+    const query = kind === 'public' ? account.public_url_query : account.admin_url_query;
+    const fullUrl = buildFullUrl(channel.login_url, query);
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">{label}</label>
+          {isAdmin && (
+            <div className="flex gap-1">
+              <button
+                onClick={() => handleSync(kind)}
+                disabled={syncing}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                title="アクティブタブのURLクエリを取得"
+              >
+                {syncing ? '同期中...' : 'タブから同期'}
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={() => startEdit(kind)}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                編集
+              </button>
+            </div>
+          )}
+        </div>
+        {query && Object.keys(query).length > 0 ? (
+          <div className="bg-gray-50 rounded p-2 text-sm">
+            <div className="flex flex-wrap gap-1 mb-1">
+              {Object.entries(query).map(([k, v]) => (
+                <span key={k} className="inline-flex items-center px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs">
+                  {k}={v}
+                </span>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 break-all mt-1">{fullUrl}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-400">未設定</p>
+        )}
+      </div>
+    );
+  };
+
+  if (editingKind) {
+    return (
+      <div className="border-t pt-4 mt-4 space-y-3">
+        <h4 className="text-sm font-medium text-gray-700">
+          {editingKind === 'public' ? '公開ページ' : '管理画面'} URLクエリ編集
+        </h4>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {queryForm.map((param, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <input
+              type="text"
+              placeholder="キー"
+              value={param.key}
+              onChange={(e) => {
+                const updated = [...queryForm];
+                updated[i] = { ...updated[i], key: e.target.value };
+                setQueryForm(updated);
+              }}
+              className="input text-sm py-1 px-2 w-1/3"
+            />
+            <span className="text-gray-400">=</span>
+            <input
+              type="text"
+              placeholder="値"
+              value={param.value}
+              onChange={(e) => {
+                const updated = [...queryForm];
+                updated[i] = { ...updated[i], value: e.target.value };
+                setQueryForm(updated);
+              }}
+              className="input text-sm py-1 px-2 flex-1"
+            />
+            <button
+              onClick={() => setQueryForm(queryForm.filter((_, j) => j !== i))}
+              className="text-red-400 hover:text-red-600 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => setQueryForm([...queryForm, { key: '', value: '' }])}
+          className="text-xs text-blue-600 hover:text-blue-800"
+        >
+          + パラメータ追加
+        </button>
+        <div className="flex gap-2 pt-2">
+          <button
+            onClick={handleSaveQuery}
+            disabled={saving}
+            className="btn btn-primary text-xs py-1 px-3 disabled:opacity-50"
+          >
+            {saving ? '保存中...' : '保存'}
+          </button>
+          <button
+            onClick={() => setEditingKind(null)}
+            disabled={saving}
+            className="btn btn-secondary text-xs py-1 px-3 disabled:opacity-50"
+          >
+            キャンセル
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t pt-4 mt-4 space-y-3">
+      <h4 className="text-sm font-medium text-gray-700">URLクエリパラメータ</h4>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {success && <p className="text-sm text-green-600">{success}</p>}
+      {renderQueryDisplay('public', '公開ページ')}
+      {renderQueryDisplay('admin', '管理画面')}
+    </div>
+  );
+}
+
 // アカウント表示コンポーネント
 function AccountDisplay({
   channel,
@@ -572,6 +866,11 @@ function AccountDisplay({
           </div>
         );
       })}
+
+      {/* URLクエリパラメータ */}
+      {channel.account && (
+        <UrlQuerySection account={channel.account} channel={channel} isAdmin={isAdmin} />
+      )}
 
       {isAdmin && (
         <div className="pt-4 border-t">

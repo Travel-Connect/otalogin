@@ -248,3 +248,40 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
 };
 
 export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu'];
+
+/**
+ * OTAパラメータのエイリアスマッピング
+ * URLの `?OTA=jaran` や `?channel=rakutentravel` を正規の ChannelCode に解決する
+ * キーは小文字に正規化して比較する
+ */
+export const CHANNEL_ALIASES: Record<string, ChannelCode> = {
+  // じゃらん
+  jaran: 'jalan',
+  // 楽天トラベル
+  rakutentravel: 'rakuten',
+  // ねっぱん
+  neppan: 'neppan',
+  // 一休
+  '1kyu': 'ikyu',
+  // ちゅらとく
+  churatoku: 'churatoku',
+  // リンカーン
+  'tl-lincoln': 'lincoln',
+  tllincoln: 'lincoln',
+  // るるぶ
+  rurubu: 'rurubu',
+};
+
+/**
+ * チャネル識別子（code / alias / OTA param）を正規の ChannelCode に解決する
+ * @returns ChannelCode or null（解決不可時）
+ */
+export function resolveChannelCode(input: string): ChannelCode | null {
+  const normalized = input.toLowerCase().trim();
+  // 正規コードに完全一致
+  if ((CHANNEL_CODES as string[]).includes(normalized)) {
+    return normalized as ChannelCode;
+  }
+  // エイリアスマッピング
+  return CHANNEL_ALIASES[normalized] ?? null;
+}

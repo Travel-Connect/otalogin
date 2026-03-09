@@ -20,6 +20,13 @@
 |------------|------|
 | [functional_requirements.md](01_requirements/01_functional_requirements.md) | 機能要件 |
 
+## 🔧 設計
+
+| ドキュメント | 説明 |
+|------------|------|
+| [deeplink.md](02_design/03_deeplink.md) | **ディープリンク実行（F8）** URL仕様・フロー |
+| [shortcuts.md](02_design/04_shortcuts.md) | **ショートカット（F9）** StreamDeck連携・Slot設計 |
+
 ## 🏗️ アーキテクチャ
 
 | ドキュメント | 説明 |
