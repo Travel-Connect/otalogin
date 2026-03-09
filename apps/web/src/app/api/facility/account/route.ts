@@ -53,14 +53,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 既存のアカウントを確認
+    // 既存のアカウントを確認（共有クレデンシャルのみ）
     const { data: existingAccount } = await supabase
       .from('facility_accounts')
       .select('id')
       .eq('facility_id', facility_id)
       .eq('channel_id', channel_id)
       .eq('account_type', account_type || 'shared')
-      .single();
+      .is('user_email', null)
+      .maybeSingle();
 
     let accountId: string;
 

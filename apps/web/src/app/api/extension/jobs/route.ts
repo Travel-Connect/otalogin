@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }));
     const facilityIds = Array.from(new Set(jobFacilityChannelPairs.map((p) => p.facility_id)));
 
-    let accountLoginUrls: Record<string, string> = {};
+    const accountLoginUrls: Record<string, string> = {};
     if (facilityIds.length > 0) {
       const { data: accounts } = await supabase
         .from('facility_accounts')

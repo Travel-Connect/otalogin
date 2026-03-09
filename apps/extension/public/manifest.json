@@ -22,7 +22,8 @@
     "https://hotel-hm.skyticket.jp/*",
     "https://www.churatoku.net/*",
     "https://www.otsinternational.jp/*",
-    "https://pics.jtb.co.jp/*"
+    "https://pics.jtb.co.jp/*",
+    "https://www.tl-lincoln.net/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -43,7 +44,8 @@
         "https://hotel-hm.skyticket.jp/*",
         "https://www.churatoku.net/*",
         "https://www.otsinternational.jp/*",
-        "https://pics.jtb.co.jp/*"
+        "https://pics.jtb.co.jp/*",
+        "https://www.tl-lincoln.net/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",

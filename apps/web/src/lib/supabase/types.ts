@@ -42,6 +42,7 @@ export interface Database {
           login_id: string;
           password: string;
           login_url: string | null;
+          user_email: string | null;
           created_at: string;
           updated_at: string;
         };

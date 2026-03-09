@@ -65,6 +65,13 @@ export interface ChannelConfig {
     label: string;
     selector?: string;
   }[];
+  /** 強制ログイン設定（既にログイン中の場合に強制ログインボタンをクリック） */
+  force_login?: {
+    /** 強制ログインページを検出するテキスト */
+    detect_text: string;
+    /** クリックするボタンのテキスト */
+    button_text: string;
+  };
 }
 
 export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
@@ -185,6 +192,23 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
       success_indicator: '.logout, a[href*="logout"], .menu, #menu, .main-contents, .dashboard',
     },
   },
+  lincoln: {
+    name: 'リンカーン',
+    login_url: 'https://www.tl-lincoln.net/accomodation/Ascsc1000InitAction.do',
+    selectors: {
+      username: 'input[name="usrId"]',
+      password: 'input[name="pwd"]',
+      submit: 'a#doLogin',
+      success_indicator: '.logout, a[href*="logout"], .menu, #menu, .main-contents, #main-contents',
+    },
+    // 二段階認証が発生する場合があるため5分待機
+    pending_timeout_ms: 300000,
+    // 既にログイン中の場合、強制ログインボタンをクリック
+    force_login: {
+      detect_text: '二重ログイン',
+      button_text: '強制ログイン',
+    },
+  },
   rurubu: {
     name: 'るるぶ',
     login_url: 'https://pics.jtb.co.jp/mldc/ja-jp/public/login',
@@ -223,4 +247,4 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
   },
 };
 
-export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'rurubu'];
+export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu'];

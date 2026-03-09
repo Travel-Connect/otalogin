@@ -138,6 +138,16 @@ async function checkPendingLoginSuccess(): Promise<void> {
     return;
   }
 
+  // 強制ログインチェック（ページリロード後に強制ログインページが表示される場合）
+  const pendingConfig = CHANNEL_CONFIGS[pending.channel_code];
+  if (pendingConfig) {
+    const forceLoginHandled = await handleForceLogin(pendingConfig);
+    if (forceLoginHandled) {
+      console.log('[OTALogin] Force login button clicked, keeping pending_login_check for next page load');
+      return; // 次のページロードで成功判定される
+    }
+  }
+
   // 成功インジケータをチェック
   console.log('[OTALogin] Checking success indicator:', pending.success_indicator);
   const success = await waitForLoginSuccess(pending.success_indicator, 15000);
@@ -362,17 +372,47 @@ async function selectFacility(
 
       console.log('[OTALogin] Target row text:', (targetRow as HTMLElement).textContent?.trim().substring(0, 80));
 
-      // 行内のリンク、ボタン、クリッカブル要素を優先的にクリック
-      const clickable = targetRow.querySelector('a, button, [role="link"], [class*="chevron"], svg') as HTMLElement | null;
-      if (clickable) {
-        console.log('[OTALogin] Clicking element inside row:', clickable.tagName, clickable.className?.substring(0, 40));
-        clickElement(clickable);
+      // 戦略1: 行内の <a href="..."> を見つけて直接ナビゲーション（最も確実）
+      const anchor = targetRow.querySelector('a[href]') as HTMLAnchorElement | null;
+      if (anchor && anchor.href && !anchor.href.startsWith('javascript:')) {
+        console.log('[OTALogin] Found anchor in row, navigating directly to:', anchor.href);
+        window.location.href = anchor.href;
+        await sleep(2000);
       } else {
-        // 行自体をクリック
-        console.log('[OTALogin] Clicking row element itself');
-        clickElement(targetRow as HTMLElement);
+        // 戦略2: 行をクリック（PointerEvent + MouseEvent でReact 17+対応）
+        console.log('[OTALogin] No anchor found, trying click with PointerEvents on row');
+        const clickTarget = targetRow as HTMLElement;
+        clickTarget.scrollIntoView({ block: 'center' });
+        await sleep(200);
+
+        // PointerEvent（React 17+ はpointerdownで検出）
+        for (const eventType of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'] as const) {
+          const EventClass = eventType.startsWith('pointer') ? PointerEvent : MouseEvent;
+          clickTarget.dispatchEvent(
+            new EventClass(eventType, { bubbles: true, cancelable: true, view: window })
+          );
+        }
+        await sleep(1500);
+
+        // ナビゲーションが発生しなかった場合、行内の各セルでも試す
+        const startUrl = window.location.href;
+        if (window.location.href === startUrl) {
+          const cells = targetRow.querySelectorAll('td, [role="cell"]');
+          for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i] as HTMLElement;
+            console.log('[OTALogin] Trying click on cell', i, ':', cell.textContent?.trim().substring(0, 30));
+            cell.click();
+            cell.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+            cell.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            await sleep(800);
+            if (window.location.href !== startUrl) {
+              console.log('[OTALogin] Navigation detected after clicking cell', i);
+              break;
+            }
+          }
+        }
       }
-      await sleep(2000);
+      await sleep(1000);
     } else {
       // row_selectorでマッチしない場合のフォールバック
       // 施設コードを含む要素を直接探す
@@ -856,6 +896,16 @@ async function executeSingleStepLogin(
     }
   }
 
+  // 強制ログインチェック（リンカーン等: 既にログイン中の場合）
+  // ページリロード前にチェック（同一ページで表示される場合）
+  await sleep(1000);
+  const forceLoginClicked = await handleForceLogin(config);
+  if (forceLoginClicked) {
+    console.log('[OTALogin] Force login button clicked, waiting for redirect...');
+    // 強制ログイン後はページ遷移するので、pending_login_checkで処理
+    return { success: true };
+  }
+
   // ログイン成功の確認（ページがリロードしない場合はここで判定）
   const success = await waitForLoginSuccess(successIndicator, 15000);
 
@@ -883,6 +933,33 @@ async function executeSingleStepLogin(
     // ログインフォームがまだ表示 → pending_login_checkが残っていればリロード先で再チェックされる
     return { success: true }; // Background側で結果を待つ
   }
+}
+
+/**
+ * 強制ログインが必要かチェックし、必要なら強制ログインボタンをクリック
+ * @returns true: 強制ログインボタンをクリックした, false: 不要
+ */
+async function handleForceLogin(config: ChannelConfig): Promise<boolean> {
+  if (!config.force_login) return false;
+
+  const bodyText = document.body?.innerText || '';
+  if (!bodyText.includes(config.force_login.detect_text)) return false;
+
+  console.log('[OTALogin] Force login page detected:', config.force_login.detect_text);
+
+  // ボタンテキストに一致する要素を探す（a, button, input[type="submit"]）
+  const clickables = document.querySelectorAll('a, button, input[type="submit"], input[type="button"]');
+  for (const el of clickables) {
+    const text = (el as HTMLElement).innerText?.trim() || (el as HTMLInputElement).value?.trim() || '';
+    if (text.includes(config.force_login.button_text)) {
+      console.log('[OTALogin] Clicking force login button:', text);
+      clickElement(el as HTMLElement);
+      return true;
+    }
+  }
+
+  console.log('[OTALogin] Force login button not found by text:', config.force_login.button_text);
+  return false;
 }
 
 /**

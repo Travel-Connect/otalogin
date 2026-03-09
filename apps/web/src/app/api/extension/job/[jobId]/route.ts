@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: Props) {
       return addCorsHeaders(NextResponse.json({ error: 'Database not configured' }, { status: 500 }));
     }
 
-    // ジョブ情報を取得
+    // ジョブ情報を取得（created_by もリンカーンのユーザー別クレデンシャルに必要）
     const { data: job, error: jobError } = await supabase
       .from('automation_jobs')
       .select(`
@@ -37,6 +37,7 @@ export async function GET(request: NextRequest, { params }: Props) {
         channel_id,
         job_type,
         status,
+        created_by,
         channels (
           code,
           login_url
@@ -66,15 +67,57 @@ export async function GET(request: NextRequest, { params }: Props) {
       ));
     }
 
-    // アカウント情報を取得（claim成功後のみ）
-    const { data: account, error: accountError } = await supabase
-      .from('facility_accounts')
-      .select('id, login_id, password, password_encrypted, login_url')
-      .eq('facility_id', job.facility_id)
-      .eq('channel_id', job.channel_id)
-      .single();
+    // チャネル情報を取得（アカウント検索前に必要）
+    const channelData = job.channels as unknown as { code: string; login_url: string } | null;
 
-    if (accountError || !account) {
+    // アカウント情報を取得（claim成功後のみ）
+    // リンカーンの場合: ジョブ作成者のメールアドレスでユーザー別クレデンシャルを検索
+    let account: { id: string; login_id: string; password: string; password_encrypted: string | null; login_url: string | null } | null = null;
+
+    if (channelData?.code === 'lincoln' && job.created_by) {
+      // ジョブ作成者のメールアドレスを取得
+      const { data: userData } = await supabase.auth.admin.getUserById(job.created_by);
+      const userEmail = userData?.user?.email;
+
+      if (userEmail) {
+        // ユーザー別クレデンシャルを検索
+        const { data: userAccount } = await supabase
+          .from('facility_accounts')
+          .select('id, login_id, password, password_encrypted, login_url')
+          .eq('facility_id', job.facility_id)
+          .eq('channel_id', job.channel_id)
+          .eq('user_email', userEmail)
+          .maybeSingle();
+
+        if (userAccount) {
+          account = userAccount;
+        }
+      }
+
+      // フォールバック: 共有クレデンシャル
+      if (!account) {
+        const { data: sharedAccount } = await supabase
+          .from('facility_accounts')
+          .select('id, login_id, password, password_encrypted, login_url')
+          .eq('facility_id', job.facility_id)
+          .eq('channel_id', job.channel_id)
+          .is('user_email', null)
+          .maybeSingle();
+        account = sharedAccount;
+      }
+    } else {
+      // 他チャネル: 共有クレデンシャル
+      const { data: sharedAccount } = await supabase
+        .from('facility_accounts')
+        .select('id, login_id, password, password_encrypted, login_url')
+        .eq('facility_id', job.facility_id)
+        .eq('channel_id', job.channel_id)
+        .is('user_email', null)
+        .maybeSingle();
+      account = sharedAccount;
+    }
+
+    if (!account) {
       // アカウント情報がない場合はジョブを失敗状態に戻す
       await supabase
         .from('automation_jobs')
@@ -91,9 +134,6 @@ export async function GET(request: NextRequest, { params }: Props) {
         { status: 404 }
       ));
     }
-
-    // チャネル情報を取得
-    const channelData = job.channels as unknown as { code: string; login_url: string } | null;
 
     // パスワードを復号（password_encrypted 優先、なければ旧 password を使用）
     const plainPassword = getPlainPassword(

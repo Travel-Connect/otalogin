@@ -67,12 +67,13 @@ export default async function FacilityPage({ params }: Props) {
     .select('*')
     .order('name');
 
-  // 施設のアカウント情報を取得（sharedのみ）
+  // 施設のアカウント情報を取得（共有クレデンシャルのみ、user_email IS NULL）
   const { data: accounts } = await supabase
     .from('facility_accounts')
     .select('*')
     .eq('facility_id', facilityId)
-    .eq('account_type', 'shared');
+    .eq('account_type', 'shared')
+    .is('user_email', null);
 
   // ヘルスステータスを取得
   const { data: healthStatuses } = await supabase
