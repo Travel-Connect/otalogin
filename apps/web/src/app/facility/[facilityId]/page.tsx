@@ -1,8 +1,27 @@
 import { redirect, notFound } from 'next/navigation';
-import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
+import { unstable_cache } from 'next/cache';
+import { createClient, createServiceClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDetail } from './FacilityDetail';
 import { resolveChannelCode } from '@otalogin/shared';
 import type { FacilityDetailData, ChannelWithAccount } from '@/lib/supabase/types';
+
+// チャネルマスタ・フィールド定義はほぼ変わらないため60秒キャッシュ
+const getCachedMasterData = unstable_cache(
+  async () => {
+    const supabase = await createServiceClient();
+    if (!supabase) return { channels: null, fieldDefinitions: null };
+    const [channelsResult, fieldDefsResult] = await Promise.all([
+      supabase.from('channels').select('*').order('name'),
+      supabase.from('account_field_definitions').select('*').order('display_order'),
+    ]);
+    return {
+      channels: channelsResult.data,
+      fieldDefinitions: fieldDefsResult.data,
+    };
+  },
+  ['master-channels-fields'],
+  { revalidate: 60 }
+);
 
 interface Props {
   params: Promise<{ facilityId: string }>;
@@ -108,22 +127,22 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
-  // 独立クエリを並列実行（レイテンシ削減）
+  // マスタデータ（キャッシュ済み）と施設固有データを並列取得
   const [
+    masterData,
     { data: facility, error: facilityError },
-    { data: channels },
     { data: accounts },
     { data: healthStatuses },
-    { data: fieldDefinitions },
     { data: userRole },
   ] = await Promise.all([
+    getCachedMasterData(),
     supabase.from('facilities').select('*').eq('id', facilityId).single(),
-    supabase.from('channels').select('*').order('name'),
     supabase.from('facility_accounts').select('*').eq('facility_id', facilityId).eq('account_type', 'shared').is('user_email', null),
     supabase.from('channel_health_status').select('*').eq('facility_id', facilityId),
-    supabase.from('account_field_definitions').select('*').order('display_order'),
     supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
   ]);
+
+  const { channels, fieldDefinitions } = masterData;
 
   if (facilityError || !facility) {
     notFound();

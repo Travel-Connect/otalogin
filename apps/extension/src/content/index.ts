@@ -182,15 +182,11 @@ async function checkPendingLoginSuccess(): Promise<void> {
     const config = CHANNEL_CONFIGS[pending.channel_code];
     if (config) {
       const loginFormStillPresent = checkLoginFormExists(config);
-      const authErrorMessage = detectAuthError();
 
-      if (authErrorMessage) {
-        console.log('[OTALogin] Auth error detected on page:', authErrorMessage);
-        await reportResult(pending.job_id, 'failed', 'AUTH_FAILED', authErrorMessage);
-        await chrome.storage.local.remove('pending_login_check');
-      } else if (!loginFormStillPresent) {
-        console.log('[OTALogin] Login form gone → treating as success (fallback)');
-        // ログイン後のアクションがあれば実行
+      // ページに「ログアウト」リンク/テキストがあれば確実にログイン成功
+      const hasLogoutIndicator = detectLogoutPresence();
+      if (hasLogoutIndicator) {
+        console.log('[OTALogin] Logout indicator found on page → treating as success');
         if (pending.post_login_action) {
           const actionResult = await executePostLoginAction(
             pending.post_login_action,
@@ -204,6 +200,29 @@ async function checkPendingLoginSuccess(): Promise<void> {
         }
         await reportResult(pending.job_id, 'success');
         await chrome.storage.local.remove('pending_login_check');
+      } else if (!loginFormStillPresent) {
+        // ログアウトもないがログインフォームも消えている → エラーチェック
+        const authErrorMessage = detectAuthError();
+        if (authErrorMessage) {
+          console.log('[OTALogin] Auth error detected on page:', authErrorMessage);
+          await reportResult(pending.job_id, 'failed', 'AUTH_FAILED', authErrorMessage);
+          await chrome.storage.local.remove('pending_login_check');
+        } else {
+          console.log('[OTALogin] Login form gone → treating as success (fallback)');
+          if (pending.post_login_action) {
+            const actionResult = await executePostLoginAction(
+              pending.post_login_action,
+              pending.extra_fields
+            );
+            if (!actionResult.success) {
+              await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error);
+              await chrome.storage.local.remove('pending_login_check');
+              return;
+            }
+          }
+          await reportResult(pending.job_id, 'success');
+          await chrome.storage.local.remove('pending_login_check');
+        }
       } else {
         console.log('[OTALogin] Login form still present, will retry on next page load');
       }
@@ -979,6 +998,40 @@ function inferErrorCode(message: string): ErrorCode {
 }
 
 /**
+ * ページ上にログアウトリンク/テキストが存在するかを検出
+ * ログアウトが存在する = ログイン成功している
+ */
+function detectLogoutPresence(): boolean {
+  // セレクタベース
+  const logoutSelectors = [
+    'a[href*="logout"]',
+    'a[href*="Logout"]',
+    'a[href*="doLogout"]',
+    'a[href*="signout"]',
+    'a[href*="sign_out"]',
+    '.logout',
+    '#logout',
+    '[data-action="logout"]',
+  ];
+  for (const selector of logoutSelectors) {
+    if (document.querySelector(selector)) {
+      console.log('[OTALogin] Logout element found via selector:', selector);
+      return true;
+    }
+  }
+  // テキストベース（リンクやボタンのテキストに「ログアウト」が含まれるか）
+  const links = document.querySelectorAll('a, button');
+  for (const el of links) {
+    const text = el.textContent?.trim() || '';
+    if (text === 'ログアウト' || text === 'Logout' || text === 'Sign Out') {
+      console.log('[OTALogin] Logout text found in element:', text);
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * ページ上に認証エラーが表示されているかを検出
  * エラーが見つかった場合はそのメッセージテキストを返す
  */
@@ -1048,9 +1101,10 @@ function detectAuthError(): string | null {
     // ねっぱん
     '契約コード',
     'ログインIDまたは',
-    // 一休
-    '施設ID',
-    'オペレータID',
+    // 一休（「施設IDまたは〜」のようなエラー文のみマッチさせる）
+    '施設IDまたは',
+    'オペレータIDまたは',
+    '施設IDが正しくありません',
     // スカイチケット
     'ログイン情報',
     // 英語（念のため）

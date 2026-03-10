@@ -537,6 +537,9 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
             )}
           </div>
         )}
+
+        {/* ディープリンクURL一覧 */}
+        <DeepLinkUrls facility={facility} />
       </main>
 
       {/* 同期確認ダイアログ */}
@@ -989,6 +992,93 @@ function AccountEditForm({
           キャンセル
         </button>
       </div>
+    </div>
+  );
+}
+
+// ディープリンクURL一覧コンポーネント
+function DeepLinkUrls({ facility }: { facility: FacilityDetailData }) {
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const channelsWithAccount = facility.channels.filter((ch) => ch.account);
+
+  if (channelsWithAccount.length === 0) return null;
+
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const handleCopy = async (url: string, code: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch {
+      // fallback
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedCode(code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    }
+  };
+
+  const handleCopyAll = async () => {
+    const lines = channelsWithAccount.map(
+      (ch) => `${ch.name}\t${baseUrl}/facility/${facility.id}?channel=${ch.code}&run=1`
+    ).join('\n');
+    try {
+      await navigator.clipboard.writeText(lines);
+      setCopiedCode('__all__');
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="mt-8">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+      >
+        <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        StreamDeck / ディープリンクURL ({channelsWithAccount.length}件)
+      </button>
+
+      {isOpen && (
+        <div className="mt-3 card">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-xs text-gray-500">アカウント設定済みチャネルのディープリンクURL</p>
+            <button
+              onClick={handleCopyAll}
+              className="text-xs text-blue-600 hover:text-blue-800"
+            >
+              {copiedCode === '__all__' ? 'コピー済み!' : '全URLをコピー (TSV)'}
+            </button>
+          </div>
+          <div className="space-y-2">
+            {channelsWithAccount.map((ch) => {
+              const url = `${baseUrl}/facility/${facility.id}?channel=${ch.code}&run=1`;
+              return (
+                <div key={ch.code} className="flex items-center gap-2 group">
+                  <StatusLamp status={ch.status} size="sm" />
+                  <span className="text-sm font-medium text-gray-700 w-24 shrink-0">{ch.name}</span>
+                  <code className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded flex-1 truncate">{url}</code>
+                  <button
+                    onClick={() => handleCopy(url, ch.code)}
+                    className="shrink-0 text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                  >
+                    {copiedCode === ch.code ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
