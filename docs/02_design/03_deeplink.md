@@ -136,6 +136,36 @@ facility_uuid は既存の `facilities.id`（UUID）をそのまま使用。
    - 存在しないチャネル指定は無視（通常表示にフォールバック）
    - run=1 でもチャネル未指定なら実行しない（`autoRun && !!deepLinkChannel`）
 
+## StreamDeck URL 一覧 UI
+
+施設詳細ページ（`/facility/[facilityId]`）の下部に、アカウント設定済みチャネルの
+ディープリンクURLを自動生成して一覧表示するセクションを設置。
+
+### 表示条件
+
+- アカウントが設定されているチャネルのみ表示
+- 折りたたみ式（デフォルト閉じ、クリックで展開）
+
+### 各行の構成
+
+```
+[状態ランプ] チャネル名  URL（truncated）  [Copy]
+```
+
+- URL形式: `{origin}/facility/{facilityId}?channel={code}&run=1`
+- Copy ボタン: `navigator.clipboard.writeText()` でコピー
+
+### 一括コピー
+
+「全URLをコピー (TSV)」ボタンで全チャネルのURLをタブ区切りで一括コピー。
+StreamDeck やスプレッドシートに貼り付けて使用可能。
+
+```
+チャネル名\tURL
+じゃらん\thttp://localhost:4000/facility/abc123?channel=jalan&run=1
+ねっぱん\thttp://localhost:4000/facility/abc123?channel=neppan&run=1
+```
+
 ## 変更ファイル一覧
 
 | ファイル | 変更内容 |

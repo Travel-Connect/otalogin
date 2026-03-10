@@ -49,6 +49,11 @@
   - Background Service Worker: メッセージ受信、タブ管理、ポーリング（1分間隔）
   - Content Scripts: OTAサイトでのDOM操作、ログイン処理
   - externally_connectable: ポータルからのメッセージ受信
+- **ビルドシステム**: `build.mjs` による個別エントリービルド
+  - Background: ES module 形式（Service Worker が `"type": "module"` のため）
+  - Content: IIFE 形式（Content Scripts は ES module 非対応、`import` 文が使えない）
+  - Popup: IIFE 形式
+  - Vite lib モードで各エントリーを個別ビルドし、コード分割（shared chunk）を防止
 - **重要**: 同一ウィンドウ内にタブを追加（`sender.tab.windowId` 使用）
 - **必須 Permissions**:
   - `tabs`: タブ操作
@@ -219,3 +224,61 @@ return addCorsHeaders(NextResponse.json({ data }));
 - 全テーブルで RLS 有効化
 - 全ユーザーが全施設を閲覧・ログイン実行可能
 - credential 更新・同期は role=admin のみ
+
+## パフォーマンス最適化
+
+### Supabase クエリ並列化
+
+リモート Supabase への往復遅延を最小化するため、独立したクエリを `Promise.all()` で並列実行:
+
+| ページ / API | Before | After | 効果 |
+|-------------|--------|-------|------|
+| `/facility/[facilityId]` (SSR) | 8クエリ直列 | 6並列 + 1依存 | 約3-5倍高速化 |
+| `/api/extension/job/[jobId]` | 4クエリ直列 | 2並列 + 1依存 | 約2倍高速化 |
+| `/api/extension/dispatch` | 3処理直列 | createClient + json 並列 | レイテンシ削減 |
+| `FacilityDetail handleLogin` | PING → dispatch 直列 | PING + dispatch 並列 | 1往復分短縮 |
+
+### マスタデータキャッシュ
+
+変更頻度の低いデータを `unstable_cache` でサーバーサイドキャッシュ:
+
+```typescript
+// channels + account_field_definitions を60秒キャッシュ
+const getCachedMasterData = unstable_cache(
+  async () => { /* channels, fieldDefinitions を取得 */ },
+  ['master-channels-fields'],
+  { revalidate: 60 }
+);
+```
+
+- 2回目以降のアクセスではキャッシュヒット → DB往復0ms
+- StreamDeck から連続で異なる施設を叩いても channels/fieldDefinitions は即座に返る
+
+### ローディングスケルトン
+
+`/facility/[facilityId]/loading.tsx` でサーバーレンダリング中に即座にスケルトンUIを表示。
+白画面を排除し、体感速度を大幅に改善。
+
+## ログイン成功判定
+
+### 判定フロー
+
+Content Script がログイン後のページで成功/失敗を判定する:
+
+```
+1. success_indicator セレクタをチェック（15秒待機）
+   → 見つかった → 成功
+2. フォールバック:
+   a. detectLogoutPresence(): ページ上にログアウトリンク/テキストがあるか
+      → 見つかった → 成功（ログイン済みページと確定）
+   b. detectAuthError(): エラーセレクタ/キーワードでエラー検出
+      → エラー検出 → AUTH_FAILED
+   c. ログインフォームが消えているか
+      → 消えている → 成功（フォールバック）
+      → 残っている → 次のページロードで再チェック
+```
+
+### detectLogoutPresence()
+
+CSS セレクタ（`a[href*="logout"]`, `.logout` 等）とテキストマッチ（「ログアウト」「Logout」）の
+両方でログアウトリンクを検出。success_indicator が見つからない場合でも確実にログイン成功を判定。
