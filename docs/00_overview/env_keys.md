@@ -51,6 +51,24 @@
 openssl rand -hex 32
 ```
 
+## パスワード暗号化
+
+| 変数名 | 説明 | 例 |
+|--------|------|-----|
+| `CREDENTIAL_ENCRYPTION_KEY` | AES-256-GCM 暗号化キー（32バイト） | base64 または hex 形式 |
+
+### CREDENTIAL_ENCRYPTION_KEY の生成
+
+```bash
+# 方法1: hex形式（64文字 = 32バイト）
+openssl rand -hex 32
+
+# 方法2: base64形式（44文字 = 32バイト）
+openssl rand -base64 32
+```
+
+**重要**: このキーを紛失すると、保存済みパスワードが復号できなくなります。安全に保管してください。
+
 ## アプリケーション
 
 | 変数名 | 説明 | 例 |

@@ -7,12 +7,20 @@ export interface ExtensionMessage {
 export type ExtensionMessageType =
   | 'DISPATCH_LOGIN' // ログイン実行依頼
   | 'PING' // 疎通確認
-  | 'GET_STATUS'; // 状態取得
+  | 'GET_STATUS' // 状態取得
+  | 'SYNC_URL_QUERY'; // アクティブタブのURLクエリを同期
 
 export interface DispatchLoginPayload {
   job_id: string;
   channel_code: string;
   facility_id: string;
+}
+
+export interface SyncUrlQueryPayload {
+  /** 同期対象: 公開ページ or 管理画面 */
+  kind: 'public' | 'admin';
+  /** ドメインチェック用の許可ドメインリスト */
+  allowed_domains: string[];
 }
 
 // 拡張 → ポータルへの応答

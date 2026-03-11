@@ -29,13 +29,25 @@ export const CreateJobSchema = z.object({
   job_type: JobTypeSchema,
 });
 
+// エラー分類
+export const ErrorCodeSchema = z.enum([
+  'AUTH_FAILED',      // ログイン認証失敗
+  'UI_CHANGED',       // ページ構造変更検出
+  'TIMEOUT',          // タイムアウト
+  'NETWORK_ERROR',    // ネットワークエラー
+  'AGENT_OFFLINE',    // 拡張オフライン
+  'UNKNOWN',          // 不明なエラー
+]);
+
 export const JobResultSchema = z.object({
   job_id: z.string().uuid(),
   status: z.enum(['success', 'failed']),
-  error_code: z.string().optional(),
+  error_code: ErrorCodeSchema.optional(),
   error_message: z.string().optional(),
   duration_ms: z.number().int().positive().optional(),
 });
+
+export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
 export type CreateJobInput = z.infer<typeof CreateJobSchema>;
 export type JobResultInput = z.infer<typeof JobResultSchema>;

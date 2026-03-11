@@ -1,37 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { JobResultSchema } from '@otalogin/shared';
+import { verifyDeviceToken } from '@/lib/extension/auth';
+import { corsPreflightResponse, addCorsHeaders } from '@/lib/extension/cors';
+
+// CORS プリフライト
+export async function OPTIONS() {
+  return corsPreflightResponse();
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // デバイストークンで認証
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // デバイストークンで認証（共通関数を使用）
+    const authResult = await verifyDeviceToken(request);
+    if (!authResult.success) {
+      return addCorsHeaders(authResult.response);
     }
-
-    // TODO: デバイストークンの検証
 
     const body = await request.json();
     const parsed = JobResultSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
+      return addCorsHeaders(NextResponse.json(
         { error: 'Invalid request', details: parsed.error.issues },
         { status: 400 }
-      );
+      ));
     }
 
-    const { job_id, status, error_code, error_message, duration_ms } = parsed.data;
+    const { job_id, status, error_code, error_message } = parsed.data;
 
     const supabase = await createServiceClient();
+    if (!supabase) {
+      return addCorsHeaders(NextResponse.json({ error: 'Database not configured' }, { status: 500 }));
+    }
 
-    // ジョブのステータスを更新
+    // ジョブのステータスを更新（error_code も保存）
     const { error: updateError } = await supabase
       .from('automation_jobs')
       .update({
         status,
         completed_at: new Date().toISOString(),
+        error_code: error_code || null,
         error_message: error_message || null,
       })
       .eq('id', job_id);
@@ -48,7 +57,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (job) {
-      // channel_health_status を upsert
+      // channel_health_status を upsert（last_error_code も保存）
       await supabase.from('channel_health_status').upsert(
         {
           facility_id: job.facility_id,
@@ -56,6 +65,7 @@ export async function POST(request: NextRequest) {
           status: status === 'success' ? 'healthy' : 'unhealthy',
           last_success_at: status === 'success' ? new Date().toISOString() : undefined,
           last_error_at: status === 'failed' ? new Date().toISOString() : undefined,
+          last_error_code: status === 'failed' ? (error_code || null) : null,
           last_error_message: error_message || null,
           updated_at: new Date().toISOString(),
         },
@@ -65,15 +75,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({
+    return addCorsHeaders(NextResponse.json({
       success: true,
       message: 'Job result reported',
-    });
+    }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
+    return addCorsHeaders(NextResponse.json(
       { error: 'Failed to report job result', details: message },
       { status: 500 }
-    );
+    ));
   }
 }

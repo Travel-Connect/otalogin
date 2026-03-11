@@ -6,12 +6,30 @@
   "permissions": [
     "tabs",
     "storage",
-    "activeTab"
+    "activeTab",
+    "alarms"
   ],
   "host_permissions": [
     "https://hotel.travel.rakuten.co.jp/*",
+    "https://api.travel.rakuten.com/*",
+    "https://login.account.rakuten.com/*",
+    "https://businessportal.global.rakuten.com/*",
     "https://www.jalan.net/*",
-    "https://asp.hotel-story.ne.jp/*"
+    "https://wwws.jalan.net/*",
+    "https://asp.hotel-story.ne.jp/*",
+    "https://*.neppan.net/*",
+    "https://www.ikyu.com/*",
+    "https://hotel-hm.skyticket.jp/*",
+    "https://www.churatoku.net/*",
+    "https://www.otsinternational.jp/*",
+    "https://pics.jtb.co.jp/*",
+    "https://www.tl-lincoln.net/*",
+    "https://d-reserve.jp/*",
+    "https://*.temairazu.net/*",
+    "https://manage.489pro-x.com/*",
+    "https://cm.tripla.ai/*",
+    "https://admin.chillnn.com/*",
+    "https://connect.minpakuin.jp/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -21,11 +39,29 @@
     {
       "matches": [
         "https://hotel.travel.rakuten.co.jp/*",
+        "https://api.travel.rakuten.com/*",
+        "https://login.account.rakuten.com/*",
+        "https://businessportal.global.rakuten.com/*",
         "https://www.jalan.net/*",
-        "https://asp.hotel-story.ne.jp/*"
+        "https://wwws.jalan.net/*",
+        "https://asp.hotel-story.ne.jp/*",
+        "https://*.neppan.net/*",
+        "https://www.ikyu.com/*",
+        "https://hotel-hm.skyticket.jp/*",
+        "https://www.churatoku.net/*",
+        "https://www.otsinternational.jp/*",
+        "https://pics.jtb.co.jp/*",
+        "https://www.tl-lincoln.net/*",
+        "https://d-reserve.jp/*",
+        "https://*.temairazu.net/*",
+        "https://manage.489pro-x.com/*",
+        "https://cm.tripla.ai/*",
+        "https://admin.chillnn.com/*",
+        "https://connect.minpakuin.jp/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "action": {
@@ -44,6 +80,8 @@
   "externally_connectable": {
     "matches": [
       "http://localhost:3000/*",
+      "http://localhost:3003/*",
+      "http://localhost:4000/*",
       "https://otalogin.vercel.app/*"
     ]
   }

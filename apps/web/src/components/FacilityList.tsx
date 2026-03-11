@@ -5,43 +5,101 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { StatusLamp } from './StatusLamp';
 import { FacilityMenu } from './FacilityMenu';
-
-interface FacilityWithStatus {
-  id: string;
-  code: string;
-  name: string;
-  health_status: 'healthy' | 'unhealthy' | 'unknown';
-}
-
-// ダミーデータ（初期段階）
-const DUMMY_FACILITIES: FacilityWithStatus[] = [
-  { id: '1', code: 'hotel-001', name: 'サンプルホテル東京', health_status: 'healthy' },
-  { id: '2', code: 'hotel-002', name: 'サンプル旅館京都', health_status: 'unhealthy' },
-  { id: '3', code: 'hotel-003', name: 'サンプルリゾート沖縄', health_status: 'unknown' },
-];
+import type { FacilityWithHealth } from '@/lib/supabase/types';
 
 export function FacilityList() {
-  const [facilities, setFacilities] = useState<FacilityWithStatus[]>(DUMMY_FACILITIES);
-  const [loading, setLoading] = useState(false);
+  const [facilities, setFacilities] = useState<FacilityWithHealth[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // TODO: Supabaseから施設一覧を取得
-    // const fetchFacilities = async () => {
-    //   setLoading(true);
-    //   const supabase = createClient();
-    //   const { data, error } = await supabase
-    //     .from('facilities')
-    //     .select('*');
-    //   if (data) setFacilities(data);
-    //   setLoading(false);
-    // };
-    // fetchFacilities();
+    const fetchFacilities = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const supabase = createClient();
+
+        // 施設一覧を取得
+        const { data: facilitiesData, error: facilitiesError } = await supabase
+          .from('facilities')
+          .select('*')
+          .order('name');
+
+        if (facilitiesError) {
+          throw facilitiesError;
+        }
+
+        if (!facilitiesData || facilitiesData.length === 0) {
+          setFacilities([]);
+          setLoading(false);
+          return;
+        }
+
+        // 各施設のヘルスステータスを取得
+        const { data: healthData, error: healthError } = await supabase
+          .from('channel_health_status')
+          .select('facility_id, status');
+
+        if (healthError) {
+          console.error('Health status fetch error:', healthError);
+        }
+
+        // 施設ごとの全体ステータスを計算
+        const facilitiesWithHealth: FacilityWithHealth[] = facilitiesData.map((facility) => {
+          const facilityHealthRecords = healthData?.filter(
+            (h) => h.facility_id === facility.id
+          ) || [];
+
+          let health_status: 'healthy' | 'unhealthy' | 'unknown' = 'unknown';
+
+          if (facilityHealthRecords.length > 0) {
+            const hasUnhealthy = facilityHealthRecords.some((h) => h.status === 'unhealthy');
+            const allHealthy = facilityHealthRecords.every((h) => h.status === 'healthy');
+
+            if (hasUnhealthy) {
+              health_status = 'unhealthy';
+            } else if (allHealthy) {
+              health_status = 'healthy';
+            }
+          }
+
+          return {
+            ...facility,
+            health_status,
+          };
+        });
+
+        setFacilities(facilitiesWithHealth);
+      } catch (err) {
+        console.error('Fetch facilities error:', err);
+        setError('施設情報の取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFacilities();
   }, []);
 
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-red-500">
+        <p>{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 text-sm text-primary-600 hover:underline"
+        >
+          再読み込み
+        </button>
       </div>
     );
   }
@@ -63,7 +121,7 @@ export function FacilityList() {
   );
 }
 
-function FacilityCard({ facility }: { facility: FacilityWithStatus }) {
+function FacilityCard({ facility }: { facility: FacilityWithHealth }) {
   return (
     <div className="card relative hover:shadow-lg transition-shadow">
       {/* 状態ランプ */}

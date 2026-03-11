@@ -68,14 +68,61 @@ pnpm dev
 4. 「パッケージ化されていない拡張機能を読み込む」
 5. `apps/extension/dist` フォルダを選択
 6. 拡張機能 ID をメモして `.env.local` に設定
+7. エラーがないことを確認（赤い「エラー」ボタンが表示されていないこと）
+
+### 拡張の必須設定確認
+
+`apps/extension/public/manifest.json` の設定:
+
+- [ ] `permissions` に `alarms` が含まれている（ポーリング用）
+- [ ] `host_permissions` に対象 OTA の URL パターンが含まれている
+- [ ] `content_scripts.matches` にも同じ URL パターンが含まれている
+- [ ] `externally_connectable.matches` に Web ポータルの URL が含まれている
+
+```json
+{
+  "permissions": ["tabs", "storage", "activeTab", "alarms"],
+  "host_permissions": [
+    "https://hotel.travel.rakuten.co.jp/*",
+    "https://www.jalan.net/*",
+    "https://wwws.jalan.net/*",
+    "https://asp.hotel-story.ne.jp/*"
+  ]
+}
+```
+
+> **注意**: リダイレクトするサイトは、リダイレクト前後の両方のドメインを追加すること
 
 ## 3. 確認項目
 
 - [ ] `pnpm dev` でポータルが起動する
 - [ ] ログイン画面が表示される
 - [ ] Chrome拡張がインストールできる
+- [ ] Chrome拡張にエラーが出ていない（`chrome://extensions` で確認）
+- [ ] ポータルで「拡張接続: 接続済み」と表示される
 - [ ] `pnpm e2e:mock` が通る
 - [ ] `pnpm verify` が通る
+
+## 3.5 拡張トラブルシューティング
+
+### Service Worker 登録失敗（Status code: 15）
+
+manifest.json に `alarms` permission を追加:
+```json
+{ "permissions": ["tabs", "storage", "activeTab", "alarms"] }
+```
+
+### CORS エラー
+
+拡張用 API（`/api/extension/*`）に CORS ヘッダーが設定されているか確認。
+`apps/web/src/lib/extension/cors.ts` の共通関数を使用すること。
+
+### Content Script が動作しない
+
+1. OTA ログインページの URL を確認（リダイレクト後のドメインに注意）
+2. manifest.json の `host_permissions` と `content_scripts.matches` に URL パターンを追加
+3. `pnpm build:extension` で再ビルド
+4. Chrome で拡張を再読み込み
 
 ## 4. 本番デプロイ前
 
