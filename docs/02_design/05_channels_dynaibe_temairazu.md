@@ -272,19 +272,124 @@ const officialSiteChannels = ['dynaibe', 'tripla', 'chillnn', 'yoyakupro'];
 
 スプレッドシートC列が「公式」の行も同様にJ列を保存。
 
+## 8b. リンク専用チャネル（link_only）
+
+以下のチャネルはログイン自動化を行わず、公開ページURLのみを管理する。
+
+| チャネル | コード | カテゴリ | 背景色 | faviconDomain |
+|---------|--------|----------|--------|---------------|
+| Booking.com | booking | OTA | `#7B1FA2`（紫） | booking.com |
+| Trip.com | tripcom | OTA | `#287DFA`（青） | trip.com |
+| Agoda | agoda | OTA | `#5542F6`（紫青） | agoda.com |
+| Expedia | expedia | OTA | `#00355F`（紺） | expedia.co.jp |
+
+### 設定
+
+```typescript
+// CHANNEL_CONFIGS
+booking:  { name: 'Booking.com', login_url: '', link_only: true }
+tripcom:  { name: 'Trip.com',    login_url: '', link_only: true }
+agoda:    { name: 'Agoda',       login_url: '', link_only: true }
+expedia:  { name: 'Expedia',     login_url: '', link_only: true }
+```
+
+### マスターシンク
+
+- スプレッドシートJ列の公開URLのみで同期（D列/E列は不要）
+- D列のlogin_idプレースホルダーとしてチャネルコードを使用
+- `isLinkOnly` フラグで判定し、publicPageUrlがない行はスキップ
+
+### DBマイグレーション
+
+```sql
+-- 20260311500000_add_booking_channel.sql
+INSERT INTO channels (code, name, login_url) VALUES ('booking', 'Booking.com', '') ON CONFLICT (code) DO NOTHING;
+-- 20260311800000_add_tripcom_channel.sql
+INSERT INTO channels (code, name, login_url) VALUES ('tripcom', 'Trip.com', '') ON CONFLICT (code) DO NOTHING;
+-- 20260311900000_add_agoda_channel.sql
+INSERT INTO channels (code, name, login_url) VALUES ('agoda', 'Agoda', '') ON CONFLICT (code) DO NOTHING;
+-- 20260312000000_add_expedia_channel.sql
+INSERT INTO channels (code, name, login_url) VALUES ('expedia', 'Expedia', '') ON CONFLICT (code) DO NOTHING;
+```
+
+### エイリアス
+
+| エイリアス | 解決先 |
+|-----------|--------|
+| booking / booking.com | booking |
+| tripcom / trip.com / トリップドットコム | tripcom |
+| agoda / agoda.com / アゴダ | agoda |
+| expedia / expedia.com / エクスペディア | expedia |
+
 ## 9. 共通: ビジュアル設定
 
 ```typescript
 // CHANNEL_VISUALS
-dynaibe:    { shortName: 'DYNA',       category: 'OTA',     bgColor: '#1B5E20', textColor: '#ffffff' }
-temairazu:  { shortName: '手間いらず',   category: 'Systems', bgColor: '#6A1B9A', textColor: '#ffffff' }
-yoyakupro:  { shortName: '予約プロ',     category: 'OTA',     bgColor: '#00695C', textColor: '#ffffff' }
-tripla:     { shortName: 'tripla',      category: 'OTA',     bgColor: '#E91E63', textColor: '#ffffff' }
-chillnn:    { shortName: 'CHILLNN',     category: 'OTA',     bgColor: '#1A237E', textColor: '#ffffff' }
-minpakuin:  { shortName: 'ミンパクイン',  category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff' }
+dynaibe:    { shortName: 'DYNA',       category: 'OTA',     bgColor: '#1B5E20', textColor: '#ffffff', faviconDomain: 'd-reserve.jp' }
+temairazu:  { shortName: '手間いらず',   category: 'Systems', bgColor: '#6A1B9A', textColor: '#ffffff', faviconDomain: 'temairazu.net' }
+yoyakupro:  { shortName: '予約プロ',     category: 'OTA',     bgColor: '#00695C', textColor: '#ffffff', faviconDomain: '489pro-x.com' }
+tripla:     { shortName: 'tripla',      category: 'OTA',     bgColor: '#E91E63', textColor: '#ffffff', faviconDomain: 'tripla.ai' }
+chillnn:    { shortName: 'CHILLNN',     category: 'OTA',     bgColor: '#1A237E', textColor: '#ffffff', faviconDomain: 'chillnn.com' }
+minpakuin:  { shortName: 'ミンパクイン',  category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff', faviconDomain: 'minpakuin.jp' }
+booking:    { shortName: 'Booking',     category: 'OTA',     bgColor: '#7B1FA2', textColor: '#ffffff', faviconDomain: 'booking.com' }
+tripcom:    { shortName: 'Trip.com',    category: 'OTA',     bgColor: '#287DFA', textColor: '#ffffff', faviconDomain: 'trip.com' }
+agoda:      { shortName: 'Agoda',       category: 'OTA',     bgColor: '#5542F6', textColor: '#ffffff', faviconDomain: 'agoda.com' }
+expedia:    { shortName: 'Expedia',     category: 'OTA',     bgColor: '#00355F', textColor: '#ffffff', faviconDomain: 'expedia.co.jp' }
 ```
 
-## 10. 変更ファイル一覧
+## 10. チャネルロゴ・背景色設定
+
+### 10.1 概要
+
+各チャネルのロゴ画像と背景色をカスタマイズする設定画面。設定は全施設のダッシュボードに一括反映。
+
+### 10.2 ロゴ表示優先順位
+
+1. アップロード済みロゴ（`channels.logo_url`） - Supabase Storage
+2. Google Favicon API（`faviconDomain` 設定がある場合） - `https://www.google.com/s2/favicons?domain=${domain}&sz=64`
+3. テキストイニシャル（`shortName`）
+
+### 10.3 テキスト色の自動コントラスト
+
+YIQ brightness formula で背景色の明暗を判定し、テキスト色を自動決定:
+
+```typescript
+function contrastText(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 150 ? '#1f2937' : '#ffffff';
+}
+```
+
+### 10.4 DBマイグレーション
+
+```sql
+-- 20260311600000_add_channel_logo_support.sql
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS logo_url TEXT;
+-- Supabase Storage: channel-logos バケット作成 + RLS ポリシー
+
+-- 20260311700000_add_channel_bg_color.sql
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS bg_color TEXT;
+```
+
+### 10.5 API
+
+| エンドポイント | メソッド | 説明 |
+|--------------|---------|------|
+| `/api/channel/logo` | POST | ロゴ画像アップロード（FormData: file + channelCode） |
+| `/api/channel/settings` | PATCH | 背景色変更（JSON: channelCode + bg_color） |
+
+### 10.6 関連コンポーネント
+
+| コンポーネント | 説明 |
+|--------------|------|
+| `ChannelLogo.tsx` | ロゴ表示（優先順位に従い表示、h=50px/w=auto） |
+| `ChannelLogoSettings.tsx` | 設定画面（カラーピッカー、アップロード） |
+| `ChannelTile.tsx` | ダッシュボードタイル（link_only対応） |
+| `FacilityCard.tsx` | 施設カード（contrastText適用） |
+
+## 11. 変更ファイル一覧
 
 | ファイル | 変更種別 | 内容 |
 |---------|---------|------|
@@ -297,7 +402,21 @@ minpakuin:  { shortName: 'ミンパクイン',  category: 'Systems', bgColor: '#
 | `supabase/migrations/20260311200000_add_chillnn_channel.sql` | 新規 | chillnnチャネルINSERT |
 | `supabase/migrations/20260311300000_add_minpakuin_channel.sql` | 新規 | minpakuinチャネルINSERT |
 | `supabase/migrations/20260311400000_set_yoyakupro_category_ota.sql` | 新規 | yoyakuproカテゴリ修正 |
-| `packages/shared/src/types/channel.ts` | 変更 | ChannelCodeに6チャネル追加 |
-| `packages/shared/src/constants/channels.ts` | 変更 | VISUALS/CONFIGS/CODES/ALIASES追加 |
+| `packages/shared/src/types/channel.ts` | 変更 | ChannelCodeに10チャネル追加 |
+| `packages/shared/src/constants/channels.ts` | 変更 | VISUALS/CONFIGS/CODES/ALIASES追加（faviconDomain、link_only対応） |
 | `apps/extension/public/manifest.json` | 変更 | host_permissions/content_scripts追加 |
-| `apps/web/src/app/api/master-sync/route.ts` | 変更 | sheetOtaAliases、officialSiteChannels対応 |
+| `apps/web/src/app/api/master-sync/route.ts` | 変更 | sheetOtaAliases、officialSiteChannels、link_only対応 |
+| `supabase/migrations/20260311500000_add_booking_channel.sql` | 新規 | bookingチャネルINSERT |
+| `supabase/migrations/20260311600000_add_channel_logo_support.sql` | 新規 | logo_urlカラム + Storage |
+| `supabase/migrations/20260311700000_add_channel_bg_color.sql` | 新規 | bg_colorカラム |
+| `supabase/migrations/20260311800000_add_tripcom_channel.sql` | 新規 | tripcomチャネルINSERT |
+| `supabase/migrations/20260311900000_add_agoda_channel.sql` | 新規 | agodaチャネルINSERT |
+| `supabase/migrations/20260312000000_add_expedia_channel.sql` | 新規 | expediaチャネルINSERT |
+| `apps/web/src/components/ChannelLogo.tsx` | 新規 | ロゴ表示コンポーネント |
+| `apps/web/src/components/ChannelTile.tsx` | 新規 | タイルコンポーネント（link_only対応） |
+| `apps/web/src/components/FacilityCard.tsx` | 新規 | 施設カード（contrastText適用） |
+| `apps/web/src/app/settings/channel-logos/page.tsx` | 新規 | ロゴ設定ページ |
+| `apps/web/src/app/settings/channel-logos/ChannelLogoSettings.tsx` | 新規 | ロゴ設定クライアントコンポーネント |
+| `apps/web/src/app/api/channel/logo/route.ts` | 新規 | ロゴアップロードAPI |
+| `apps/web/src/app/api/channel/settings/route.ts` | 新規 | チャネル設定API |
+| `apps/web/src/app/page.tsx` | 変更 | 未登録チャネル非表示フィルタ追加 |

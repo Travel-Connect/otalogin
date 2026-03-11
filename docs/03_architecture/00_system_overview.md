@@ -1,6 +1,6 @@
 # システム全体像
 
-最終更新: 2026-03-09
+最終更新: 2026-03-11
 
 ## アーキテクチャ概要
 
@@ -92,6 +92,8 @@
   - `/api/cron/healthcheck`: Health Check Cron
   - `/api/facility/account`: アカウント情報CRUD
   - `/api/facility/[facilityId]`: 施設情報CRUD
+  - `/api/channel/logo`: チャネルロゴアップロード（POST）
+  - `/api/channel/settings`: チャネル背景色変更（PATCH）
 - **CORS**: 拡張用 API は全て CORS ヘッダーを付与（`apps/web/src/lib/extension/cors.ts`）
 
 ### Supabase
@@ -107,6 +109,7 @@
 - **認証**: メール + パスワード
 - **RLS**: 有効化必須
 - **暗号化**: AES-256-GCM（CREDENTIAL_ENCRYPTION_KEY）
+- **Storage**: `channel-logos` バケット（チャネルロゴ画像）
 
 ### Google Sheets
 

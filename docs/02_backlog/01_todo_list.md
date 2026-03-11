@@ -1,6 +1,6 @@
 # タスク一覧
 
-最終更新: 2026-03-09
+最終更新: 2026-03-11
 
 ---
 
@@ -78,6 +78,40 @@
 - [x] ディープリンク: open=public パラメータ対応
 - [x] ホーム画面にショートカットリンク追加
 - [x] 詳細設計書作成（docs/02_design/04_shortcuts.md）
+
+### チャネルロゴ・背景色設定 (F10) ✅ 完了
+
+- [x] Supabase Storage（channel-logosバケット）セットアップ
+- [x] DBマイグレーション（logo_url, bg_color カラム追加）
+- [x] ChannelLogoコンポーネント（favicon → テキストフォールバック）
+- [x] ロゴアップロードAPI（POST /api/channel/logo）
+- [x] 背景色変更API（PATCH /api/channel/settings）
+- [x] 設定画面（/settings/channel-logos）
+- [x] カラーピッカー + 保存 / リセット
+- [x] テキスト色自動コントラスト（YIQ brightness formula）
+- [x] アップロード済みロゴ: h=50px, w=auto表示
+
+### リンク専用チャネル (F11) ✅ 完了
+
+- [x] link_only フラグ追加（ChannelConfig）
+- [x] Booking.com チャネル追加（DB + 型 + VISUALS/CONFIGS/ALIASES）
+- [x] Trip.com チャネル追加
+- [x] Agoda チャネル追加
+- [x] Expedia チャネル追加
+- [x] マスターシンク: link_onlyチャネルのJ列URLのみ同期
+- [x] ChannelTile: link_onlyタイル表示（クリック無効、公開ボタン表示）
+- [x] StatusLamp: 'link' ステータス追加（indigo色）
+
+### ダッシュボードチャネルフィルタリング (F12) ✅ 完了
+
+- [x] 施設ごとに未登録チャネルを非表示
+
+### Vercelデプロイ ✅ 完了
+
+- [x] Vercelプロジェクト作成（otalogin-web）
+- [x] 環境変数設定
+- [x] Cron: Hobbyプラン制約対応（日次のみ）
+- [x] externally_connectable: デプロイURLに更新
 
 ### URLクエリ同期 ✅ 完了
 

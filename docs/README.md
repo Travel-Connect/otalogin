@@ -26,6 +26,8 @@
 |------------|------|
 | [deeplink.md](02_design/03_deeplink.md) | **ディープリンク実行（F8）** URL仕様・フロー |
 | [shortcuts.md](02_design/04_shortcuts.md) | **ショートカット（F9）** StreamDeck連携・Slot設計 |
+| [channels_dynaibe_temairazu.md](02_design/05_channels_dynaibe_temairazu.md) | **チャネル追加設計** 新規チャネル・リンク専用OTA・ロゴ/背景色設定 |
+| [bulk_sync_and_field_fix.md](02_design/06_bulk_sync_and_field_fix.md) | **一括同期・追加フィールド修正・公式サイトURL** |
 
 ## 🏗️ アーキテクチャ
 
