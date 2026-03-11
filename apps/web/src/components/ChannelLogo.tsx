@@ -29,27 +29,33 @@ export function ChannelLogo({ shortName, bgColor, textColor, disabled = false, s
   const [imgError, setImgError] = useState(false);
   const [faviconError, setFaviconError] = useState(false);
 
-  // Priority: uploaded logo > favicon > initials
   const uploadedUrl = logoUrl && !disabled && !imgError ? logoUrl : null;
   const faviconUrl = !uploadedUrl && faviconDomain && !disabled && !faviconError
     ? `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=64`
     : null;
 
+  // アップロード済みロゴ: 高さ50px固定、横幅は画像に合わせる
+  if (uploadedUrl) {
+    return (
+      <div className="flex items-center justify-center flex-shrink-0 select-none">
+        <img
+          src={uploadedUrl}
+          alt={shortName}
+          className="object-contain rounded-sm"
+          style={{ height: 50, width: 'auto', maxWidth: 120 }}
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
+
+  // ファビコン / イニシャル: 従来の正方形
   return (
     <div
       className={`${s.outer} ${s.radius} flex items-center justify-center flex-shrink-0 select-none`}
       style={{ backgroundColor: bg }}
     >
-      {uploadedUrl ? (
-        <img
-          src={uploadedUrl}
-          alt={shortName}
-          width={s.iconSize}
-          height={s.iconSize}
-          className="rounded-sm object-contain"
-          onError={() => setImgError(true)}
-        />
-      ) : faviconUrl ? (
+      {faviconUrl ? (
         <img
           src={faviconUrl}
           alt={shortName}
