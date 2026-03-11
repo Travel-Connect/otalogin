@@ -29,7 +29,6 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
     return (
       <ChannelTile
         key={ch.channel_id}
-        channelCode={ch.channel_code}
         channelName={ch.channel_name}
         shortName={visual.shortName}
         bgColor={visual.bgColor}

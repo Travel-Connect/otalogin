@@ -1,13 +1,8 @@
-'use client';
-
-import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { StatusLamp } from './StatusLamp';
 import { ChannelLogo } from './ChannelLogo';
 import type { DashboardChannelStatus } from '@/lib/supabase/types';
 
 interface ChannelTileProps {
-  channelCode: string;
   channelName: string;
   shortName: string;
   bgColor: string;
@@ -22,7 +17,6 @@ interface ChannelTileProps {
 }
 
 export function ChannelTile({
-  channelCode,
   channelName,
   shortName,
   bgColor,
@@ -35,12 +29,7 @@ export function ChannelTile({
   linkOnly,
   onClick,
 }: ChannelTileProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
-  const [uploading, setUploading] = useState(false);
-
   const isUnregistered = status === 'unregistered';
-  // リンク専用チャネル: 常にカラー表示、ログインなし
   const isLinkOnlyChannel = !!linkOnly;
   const showColored = isLinkOnlyChannel || !isUnregistered;
   const isClickable = !isLinkOnlyChannel && !isUnregistered;
@@ -53,70 +42,9 @@ export function ChannelTile({
     ? channelName
     : isUnregistered ? '未登録' : `${channelName} にログイン`;
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('channelCode', channelCode);
-      const res = await fetch('/api/channel/logo', { method: 'POST', body: formData });
-      if (res.ok) {
-        router.refresh();
-      }
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
   const tileBg = showColored ? bgColor : '#E5E7EB';
   const tileText = showColored ? textColor : '#9CA3AF';
   const lampStatus = isLinkOnlyChannel && publicPageUrl ? 'link' : status;
-
-  // ロゴエリア（アップロードオーバーレイ付き）
-  const logoArea = (
-    <div className="group/logo relative">
-      <ChannelLogo
-        shortName={shortName}
-        bgColor={tileBg}
-        textColor={tileText}
-        disabled={!showColored}
-        faviconDomain={faviconDomain}
-        logoUrl={logoUrl}
-      />
-      {/* アップロードオーバーレイ（ホバー時表示） */}
-      <button
-        className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg opacity-0 group-hover/logo:opacity-100 transition-opacity"
-        onClick={(e) => {
-          e.stopPropagation();
-          fileInputRef.current?.click();
-        }}
-        title="ロゴをアップロード"
-        disabled={uploading}
-      >
-        {uploading ? (
-          <svg className="w-4 h-4 text-white animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-            <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
-            <circle cx="12" cy="13" r="4" />
-          </svg>
-        )}
-      </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/gif,image/svg+xml,image/webp"
-        className="hidden"
-        onChange={handleLogoUpload}
-      />
-    </div>
-  );
 
   if (variant === 'ota') {
     return (
@@ -130,7 +58,14 @@ export function ChannelTile({
           <div className="absolute top-1.5 right-1.5">
             <StatusLamp status={lampStatus} size="sm" />
           </div>
-          {logoArea}
+          <ChannelLogo
+            shortName={shortName}
+            bgColor={tileBg}
+            textColor={tileText}
+            disabled={!showColored}
+            faviconDomain={faviconDomain}
+            logoUrl={logoUrl}
+          />
         </div>
         {publicPageUrl && (
           <a
@@ -160,7 +95,14 @@ export function ChannelTile({
         onClick={isClickable ? onClick : undefined}
         title={title}
       >
-        {logoArea}
+        <ChannelLogo
+          shortName={shortName}
+          bgColor={tileBg}
+          textColor={tileText}
+          disabled={!showColored}
+          faviconDomain={faviconDomain}
+          logoUrl={logoUrl}
+        />
       </div>
       <div
         className={`relative flex flex-1 items-center px-3 min-h-[52px] ${cursorClass}`}
