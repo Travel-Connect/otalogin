@@ -22,7 +22,7 @@ export default async function ChannelLogosPage() {
 
   const { data: channels } = await supabase
     .from('channels')
-    .select('id, code, name, logo_url, category')
+    .select('id, code, name, logo_url, bg_color, category')
     .order('name');
 
   return (

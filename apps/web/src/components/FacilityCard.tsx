@@ -31,7 +31,7 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
         key={ch.channel_id}
         channelName={ch.channel_name}
         shortName={visual.shortName}
-        bgColor={visual.bgColor}
+        bgColor={ch.bg_color || visual.bgColor}
         textColor={visual.textColor}
         status={ch.status}
         variant={variant}

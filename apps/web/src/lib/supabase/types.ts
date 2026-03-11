@@ -165,6 +165,8 @@ export interface DashboardChannelInfo {
   public_page_url: string | null;
   /** チャネルロゴURL（Supabase Storageにアップロード済み） */
   logo_url: string | null;
+  /** カスタム背景色（未設定時はCHANNEL_VISUALSのデフォルト色を使用） */
+  bg_color: string | null;
 }
 
 export interface DashboardFacility {
