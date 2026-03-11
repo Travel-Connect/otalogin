@@ -1,5 +1,5 @@
 type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
-type DashboardStatus = 'success' | 'error' | 'running' | 'unregistered' | 'disabled';
+type DashboardStatus = 'success' | 'error' | 'running' | 'unregistered' | 'disabled' | 'link';
 
 interface StatusLampProps {
   status: HealthStatus | DashboardStatus;
@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<HealthStatus | DashboardStatus, { className: string;
   running: { className: 'bg-blue-500 animate-pulse', title: '実行中' },
   unregistered: { className: 'bg-gray-400', title: '未登録' },
   disabled: { className: 'bg-gray-300', title: '無効' },
+  link: { className: 'bg-indigo-400', title: 'リンク' },
 };
 
 export function StatusLamp({ status, size = 'md' }: StatusLampProps) {

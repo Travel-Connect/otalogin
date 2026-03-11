@@ -51,32 +51,37 @@ export interface ChannelVisual {
   category: ChannelCategory;
   bgColor: string;
   textColor: string;
+  /** ファビコン取得用ドメイン（Google Favicon API使用） */
+  faviconDomain?: string;
 }
 
 /**
  * チャネルごとのビジュアル定義
  */
 export const CHANNEL_VISUALS: Record<ChannelCode, ChannelVisual> = {
-  rakuten: { shortName: '楽天T', category: 'OTA', bgColor: '#BF0000', textColor: '#ffffff' },
-  jalan: { shortName: 'じゃらん', category: 'OTA', bgColor: '#E8380D', textColor: '#ffffff' },
-  neppan: { shortName: 'ねっぱん', category: 'Systems', bgColor: '#1565C0', textColor: '#ffffff' },
-  ikyu: { shortName: '一休', category: 'OTA', bgColor: '#212121', textColor: '#ffffff' },
-  skyticket: { shortName: 'スカイチケット', category: 'OTA', bgColor: '#0288D1', textColor: '#ffffff' },
-  churatoku: { shortName: 'ちゅらとく', category: 'OTA', bgColor: '#00838F', textColor: '#ffffff' },
-  ots: { shortName: 'OTS', category: 'OTA', bgColor: '#4A148C', textColor: '#ffffff' },
-  lincoln: { shortName: 'リンカーン', category: 'Systems', bgColor: '#BF360C', textColor: '#ffffff' },
-  rurubu: { shortName: 'るるぶ', category: 'OTA', bgColor: '#00838F', textColor: '#ffffff' },
-  dynaibe: { shortName: 'DYNA', category: 'OTA', bgColor: '#1B5E20', textColor: '#ffffff' },
-  temairazu: { shortName: '手間いらず', category: 'Systems', bgColor: '#6A1B9A', textColor: '#ffffff' },
-  yoyakupro: { shortName: '予約プロ', category: 'OTA', bgColor: '#00695C', textColor: '#ffffff' },
-  tripla: { shortName: 'tripla', category: 'OTA', bgColor: '#E91E63', textColor: '#ffffff' },
-  chillnn: { shortName: 'CHILLNN', category: 'OTA', bgColor: '#1A237E', textColor: '#ffffff' },
-  minpakuin: { shortName: 'ミンパクイン', category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff' },
+  rakuten: { shortName: '楽天T', category: 'OTA', bgColor: '#BF0000', textColor: '#ffffff', faviconDomain: 'hotel.travel.rakuten.co.jp' },
+  jalan: { shortName: 'じゃらん', category: 'OTA', bgColor: '#E8380D', textColor: '#ffffff', faviconDomain: 'jalan.net' },
+  neppan: { shortName: 'ねっぱん', category: 'Systems', bgColor: '#1565C0', textColor: '#ffffff', faviconDomain: 'hotel-story.ne.jp' },
+  ikyu: { shortName: '一休', category: 'OTA', bgColor: '#212121', textColor: '#ffffff', faviconDomain: 'ikyu.com' },
+  skyticket: { shortName: 'スカイチケット', category: 'OTA', bgColor: '#0288D1', textColor: '#ffffff', faviconDomain: 'skyticket.jp' },
+  churatoku: { shortName: 'ちゅらとく', category: 'OTA', bgColor: '#00838F', textColor: '#ffffff', faviconDomain: 'churatoku.net' },
+  ots: { shortName: 'OTS', category: 'OTA', bgColor: '#4A148C', textColor: '#ffffff', faviconDomain: 'otsinternational.jp' },
+  lincoln: { shortName: 'リンカーン', category: 'Systems', bgColor: '#BF360C', textColor: '#ffffff', faviconDomain: 'tl-lincoln.net' },
+  rurubu: { shortName: 'るるぶ', category: 'OTA', bgColor: '#00838F', textColor: '#ffffff', faviconDomain: 'jtb.co.jp' },
+  dynaibe: { shortName: 'DYNA', category: 'OTA', bgColor: '#1B5E20', textColor: '#ffffff', faviconDomain: 'd-reserve.jp' },
+  temairazu: { shortName: '手間いらず', category: 'Systems', bgColor: '#6A1B9A', textColor: '#ffffff', faviconDomain: 'temairazu.net' },
+  yoyakupro: { shortName: '予約プロ', category: 'OTA', bgColor: '#00695C', textColor: '#ffffff', faviconDomain: '489pro-x.com' },
+  tripla: { shortName: 'tripla', category: 'OTA', bgColor: '#E91E63', textColor: '#ffffff', faviconDomain: 'tripla.ai' },
+  chillnn: { shortName: 'CHILLNN', category: 'OTA', bgColor: '#1A237E', textColor: '#ffffff', faviconDomain: 'chillnn.com' },
+  minpakuin: { shortName: 'ミンパクイン', category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff', faviconDomain: 'minpakuin.jp' },
+  booking: { shortName: 'Booking', category: 'OTA', bgColor: '#003580', textColor: '#ffffff', faviconDomain: 'booking.com' },
 };
 
 export interface ChannelConfig {
   name: string;
   login_url: string;
+  /** リンク専用チャネル（ログイン自動化なし、公開リンクのみ） */
+  link_only?: boolean;
   /** シングルステップログイン用のセレクタ（login_stepsが未定義の場合に使用） */
   selectors?: {
     username: string;
@@ -338,9 +343,14 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
       success_indicator: '.logout, a[href*="logout"], .menu, #menu, .main-contents, #main-contents, .dashboard, .sidebar',
     },
   },
+  booking: {
+    name: 'Booking.com',
+    login_url: '',
+    link_only: true,
+  },
 };
 
-export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu', 'dynaibe', 'temairazu', 'yoyakupro', 'tripla', 'chillnn', 'minpakuin'];
+export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu', 'dynaibe', 'temairazu', 'yoyakupro', 'tripla', 'chillnn', 'minpakuin', 'booking'];
 
 /**
  * OTAパラメータのエイリアスマッピング
@@ -384,6 +394,9 @@ export const CHANNEL_ALIASES: Record<string, ChannelCode> = {
   // ミンパクイン
   minpakuin: 'minpakuin',
   ミンパクイン: 'minpakuin',
+  // Booking.com
+  booking: 'booking',
+  'booking.com': 'booking',
 };
 
 /**

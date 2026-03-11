@@ -1,6 +1,6 @@
 'use client';
 
-import { CHANNEL_VISUALS, type ChannelCategory } from '@otalogin/shared';
+import { CHANNEL_VISUALS, CHANNEL_CONFIGS, type ChannelCategory } from '@otalogin/shared';
 import { ChannelTile } from './ChannelTile';
 import { FacilityMenu } from './FacilityMenu';
 import type { DashboardFacility, DashboardChannelInfo } from '@/lib/supabase/types';
@@ -25,6 +25,7 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
 
   function renderTile(ch: DashboardChannelInfo, variant: 'ota' | 'systems') {
     const visual = getVisual(ch.channel_code);
+    const config = CHANNEL_CONFIGS[ch.channel_code as keyof typeof CHANNEL_CONFIGS];
     return (
       <ChannelTile
         key={ch.channel_id}
@@ -35,6 +36,8 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
         status={ch.status}
         variant={variant}
         publicPageUrl={ch.public_page_url}
+        faviconDomain={visual.faviconDomain}
+        linkOnly={config?.link_only}
         onClick={() => onChannelLogin(facility.id, ch.channel_id, ch.channel_code)}
       />
     );

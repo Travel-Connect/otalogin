@@ -10,6 +10,8 @@ interface ChannelTileProps {
   status: DashboardChannelStatus;
   variant?: 'ota' | 'systems';
   publicPageUrl?: string | null;
+  faviconDomain?: string;
+  linkOnly?: boolean;
   onClick?: () => void;
 }
 
@@ -21,16 +23,26 @@ export function ChannelTile({
   status,
   variant = 'ota',
   publicPageUrl,
+  faviconDomain,
+  linkOnly,
   onClick,
 }: ChannelTileProps) {
   const isUnregistered = status === 'unregistered';
-  const isClickable = !isUnregistered;
+  // リンク専用チャネルは公開リンクがあればクリック可能（新しいタブで開く）
+  const isLinkOnly = linkOnly && publicPageUrl;
+  const isClickable = isLinkOnly || !isUnregistered;
 
   const cursorClass = isClickable
     ? 'cursor-pointer active:scale-[0.98]'
     : 'cursor-not-allowed';
 
-  const title = isUnregistered ? '未登録' : `${channelName} にログイン`;
+  const title = isLinkOnly
+    ? `${channelName} を開く`
+    : isUnregistered ? '未登録' : `${channelName} にログイン`;
+
+  const handleClick = isLinkOnly
+    ? () => window.open(publicPageUrl!, '_blank', 'noopener,noreferrer')
+    : isClickable ? onClick : undefined;
 
   if (variant === 'ota') {
     return (
@@ -39,21 +51,22 @@ export function ChannelTile({
       >
         <div
           className={`relative flex items-center justify-center px-2 py-3 min-h-[56px] ${cursorClass}`}
-          style={{ backgroundColor: isUnregistered ? '#E5E7EB' : bgColor }}
-          onClick={isClickable ? onClick : undefined}
+          style={{ backgroundColor: isUnregistered && !isLinkOnly ? '#E5E7EB' : bgColor }}
+          onClick={handleClick}
           title={title}
         >
           <div className="absolute top-1.5 right-1.5">
-            <StatusLamp status={status} size="sm" />
+            <StatusLamp status={isLinkOnly ? 'link' : status} size="sm" />
           </div>
           <ChannelLogo
             shortName={shortName}
-            bgColor={isUnregistered ? '#E5E7EB' : bgColor}
-            textColor={isUnregistered ? '#9CA3AF' : textColor}
-            disabled={isUnregistered}
+            bgColor={isUnregistered && !isLinkOnly ? '#E5E7EB' : bgColor}
+            textColor={isUnregistered && !isLinkOnly ? '#9CA3AF' : textColor}
+            disabled={isUnregistered && !isLinkOnly}
+            faviconDomain={faviconDomain}
           />
         </div>
-        {publicPageUrl && (
+        {publicPageUrl && !isLinkOnly && (
           <a
             href={publicPageUrl}
             target="_blank"
@@ -81,7 +94,7 @@ export function ChannelTile({
       <div
         className={`relative flex items-center justify-center flex-shrink-0 w-[56px] min-h-[52px] ${cursorClass}`}
         style={{ backgroundColor: tileBg }}
-        onClick={isClickable ? onClick : undefined}
+        onClick={handleClick}
         title={title}
       >
         <ChannelLogo
@@ -89,12 +102,13 @@ export function ChannelTile({
           bgColor={tileBg}
           textColor={tileText}
           disabled={isUnregistered}
+          faviconDomain={faviconDomain}
         />
       </div>
       <div
         className={`relative flex flex-1 items-center px-3 min-h-[52px] ${cursorClass}`}
         style={{ backgroundColor: tileBg }}
-        onClick={isClickable ? onClick : undefined}
+        onClick={handleClick}
         title={title}
       >
         <div className="absolute top-1.5 right-1.5">

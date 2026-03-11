@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { google } from 'googleapis';
 import { encryptPassword } from '@/lib/crypto/credentials';
+import { CHANNEL_CONFIGS } from '@otalogin/shared';
 
 export async function POST(request: NextRequest) {
   try {
@@ -138,6 +139,8 @@ export async function POST(request: NextRequest) {
       トリプラ: 'tripla',
       チルン: 'chillnn',
       ミンパクイン: 'minpakuin',
+      'booking.com': 'booking',
+      booking: 'booking',
     };
 
     // OTP認証チャネル（パスワード不要）
@@ -187,6 +190,8 @@ export async function POST(request: NextRequest) {
       }
 
       const isOtpChannel = otpChannels.includes(channel.code);
+      const channelConfig = CHANNEL_CONFIGS[channel.code as keyof typeof CHANNEL_CONFIGS];
+      const isLinkOnly = channelConfig?.link_only === true;
       let syncedCount = 0;
 
       // 各行を処理（リンカーンは複数行、他チャネルは1行）
@@ -205,6 +210,41 @@ export async function POST(request: NextRequest) {
             .from('facilities')
             .update({ official_site_url: publicPageUrl })
             .eq('id', facility_id);
+        }
+
+        // リンク専用チャネルはpublic_page_urlのみで保存
+        if (isLinkOnly) {
+          if (!publicPageUrl) continue;
+          const { data: existingAccount } = await serviceSupabase
+            .from('facility_accounts')
+            .select('id')
+            .eq('facility_id', facility_id)
+            .eq('channel_id', channel.id)
+            .eq('account_type', 'shared')
+            .is('user_email', null)
+            .maybeSingle();
+
+          if (existingAccount) {
+            await serviceSupabase
+              .from('facility_accounts')
+              .update({
+                public_page_url: publicPageUrl,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existingAccount.id);
+          } else {
+            await serviceSupabase
+              .from('facility_accounts')
+              .insert({
+                facility_id,
+                channel_id: channel.id,
+                account_type: 'shared',
+                login_id: channel.code,
+                public_page_url: publicPageUrl,
+              });
+          }
+          syncedCount++;
+          continue;
         }
 
         // ログインIDは必須、パスワードはOTPチャネル以外で必須
