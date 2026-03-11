@@ -87,6 +87,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
       id: facilityId,
       code: 'hotel-dev',
       name: '開発モード施設',
+      official_site_url: null,
       channels: [
         {
           id: 'ch-1',
@@ -187,6 +188,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
           };
         }),
         public_url_query: account.public_url_query as Record<string, string> | null,
+        public_page_url: account.public_page_url as string | null,
         admin_url_query: account.admin_url_query as Record<string, string> | null,
       };
     }
@@ -226,6 +228,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     id: facility.id,
     code: facility.code,
     name: facility.name,
+    official_site_url: facility.official_site_url ?? null,
     channels: channelsWithAccount,
   };
 

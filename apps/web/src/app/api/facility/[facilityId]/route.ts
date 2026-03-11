@@ -1,6 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ facilityId: string }> }
+) {
+  try {
+    const { facilityId } = await params;
+
+    const supabase = await createClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // admin権限チェック
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (userRole?.role !== 'admin') {
+      return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
+    }
+
+    // 施設の存在確認
+    const { data: facility } = await supabase
+      .from('facilities')
+      .select('id, name')
+      .eq('id', facilityId)
+      .single();
+
+    if (!facility) {
+      return NextResponse.json({ error: '施設が見つかりません' }, { status: 404 });
+    }
+
+    // 削除（CASCADE で関連データも自動削除）
+    const { error: deleteError } = await supabase
+      .from('facilities')
+      .delete()
+      .eq('id', facilityId);
+
+    if (deleteError) {
+      return NextResponse.json(
+        { error: '施設の削除に失敗しました', details: deleteError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, deleted: facility.name });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ facilityId: string }> }

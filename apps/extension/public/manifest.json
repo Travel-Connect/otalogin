@@ -23,7 +23,13 @@
     "https://www.churatoku.net/*",
     "https://www.otsinternational.jp/*",
     "https://pics.jtb.co.jp/*",
-    "https://www.tl-lincoln.net/*"
+    "https://www.tl-lincoln.net/*",
+    "https://d-reserve.jp/*",
+    "https://*.temairazu.net/*",
+    "https://manage.489pro-x.com/*",
+    "https://cm.tripla.ai/*",
+    "https://admin.chillnn.com/*",
+    "https://connect.minpakuin.jp/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -45,7 +51,13 @@
         "https://www.churatoku.net/*",
         "https://www.otsinternational.jp/*",
         "https://pics.jtb.co.jp/*",
-        "https://www.tl-lincoln.net/*"
+        "https://www.tl-lincoln.net/*",
+        "https://d-reserve.jp/*",
+        "https://*.temairazu.net/*",
+        "https://manage.489pro-x.com/*",
+        "https://cm.tripla.ai/*",
+        "https://admin.chillnn.com/*",
+        "https://connect.minpakuin.jp/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",

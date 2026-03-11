@@ -17,6 +17,8 @@ export interface Database {
           id: string;
           code: string;
           name: string;
+          tags: string[];
+          official_site_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -29,6 +31,7 @@ export interface Database {
           code: string;
           name: string;
           login_url: string;
+          category: 'OTA' | 'Systems';
           created_at: string;
           updated_at: string;
         };
@@ -44,6 +47,7 @@ export interface Database {
           login_url: string | null;
           user_email: string | null;
           public_url_query: Record<string, string> | null;
+          public_page_url: string | null;
           admin_url_query: Record<string, string> | null;
           created_at: string;
           updated_at: string;
@@ -140,9 +144,34 @@ export interface FacilityWithHealth {
   id: string;
   code: string;
   name: string;
+  tags: string[];
   created_at: string;
   updated_at: string;
   health_status: 'healthy' | 'unhealthy' | 'unknown';
+}
+
+// ダッシュボード用: チャネルごとのステータス
+export type DashboardChannelStatus = 'success' | 'error' | 'running' | 'unregistered';
+
+export interface DashboardChannelInfo {
+  channel_id: string;
+  channel_code: string;
+  channel_name: string;
+  category: 'OTA' | 'Systems';
+  status: DashboardChannelStatus;
+  has_account: boolean;
+  error_code: ErrorCodeType | null;
+  /** 公開ページURL（login_url + public_url_query で構築済み） */
+  public_page_url: string | null;
+}
+
+export interface DashboardFacility {
+  id: string;
+  code: string;
+  name: string;
+  tags: string[];
+  official_site_url: string | null;
+  channels: DashboardChannelInfo[];
 }
 
 // 施設詳細用の型
@@ -150,6 +179,7 @@ export interface FacilityDetailData {
   id: string;
   code: string;
   name: string;
+  official_site_url: string | null;
   channels: ChannelWithAccount[];
 }
 
@@ -173,6 +203,7 @@ export interface AccountData {
   password: string;
   field_values: FieldValue[];
   public_url_query: Record<string, string> | null;
+  public_page_url: string | null;
   admin_url_query: Record<string, string> | null;
 }
 

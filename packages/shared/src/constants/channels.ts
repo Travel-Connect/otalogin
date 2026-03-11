@@ -41,6 +41,39 @@ export interface PostLoginAction {
   submit_with_enter?: boolean;
 }
 
+export type ChannelCategory = 'OTA' | 'Systems';
+
+/**
+ * チャネルのビジュアル設定（トップページのタイル表示用）
+ */
+export interface ChannelVisual {
+  shortName: string;
+  category: ChannelCategory;
+  bgColor: string;
+  textColor: string;
+}
+
+/**
+ * チャネルごとのビジュアル定義
+ */
+export const CHANNEL_VISUALS: Record<ChannelCode, ChannelVisual> = {
+  rakuten: { shortName: '楽天T', category: 'OTA', bgColor: '#BF0000', textColor: '#ffffff' },
+  jalan: { shortName: 'じゃらん', category: 'OTA', bgColor: '#E8380D', textColor: '#ffffff' },
+  neppan: { shortName: 'ねっぱん', category: 'Systems', bgColor: '#1565C0', textColor: '#ffffff' },
+  ikyu: { shortName: '一休', category: 'OTA', bgColor: '#212121', textColor: '#ffffff' },
+  skyticket: { shortName: 'スカイチケット', category: 'OTA', bgColor: '#0288D1', textColor: '#ffffff' },
+  churatoku: { shortName: 'ちゅらとく', category: 'OTA', bgColor: '#00838F', textColor: '#ffffff' },
+  ots: { shortName: 'OTS', category: 'OTA', bgColor: '#4A148C', textColor: '#ffffff' },
+  lincoln: { shortName: 'リンカーン', category: 'Systems', bgColor: '#BF360C', textColor: '#ffffff' },
+  rurubu: { shortName: 'るるぶ', category: 'OTA', bgColor: '#00838F', textColor: '#ffffff' },
+  dynaibe: { shortName: 'DYNA', category: 'OTA', bgColor: '#1B5E20', textColor: '#ffffff' },
+  temairazu: { shortName: '手間いらず', category: 'Systems', bgColor: '#6A1B9A', textColor: '#ffffff' },
+  yoyakupro: { shortName: '予約プロ', category: 'OTA', bgColor: '#00695C', textColor: '#ffffff' },
+  tripla: { shortName: 'tripla', category: 'OTA', bgColor: '#E91E63', textColor: '#ffffff' },
+  chillnn: { shortName: 'CHILLNN', category: 'OTA', bgColor: '#1A237E', textColor: '#ffffff' },
+  minpakuin: { shortName: 'ミンパクイン', category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff' },
+};
+
 export interface ChannelConfig {
   name: string;
   login_url: string;
@@ -245,9 +278,69 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
       },
     ],
   },
+  dynaibe: {
+    name: 'DYNA IBE',
+    login_url: 'https://d-reserve.jp/hotel-facility-front/HMEM001F00100/HMEM001A01',
+    selectors: {
+      username: 'input[name="email"]',
+      password: 'input[name="password"]',
+      submit: 'button[type="submit"], input[type="submit"]',
+      success_indicator: '.logout, a[href*="logout"], a[href*="Logout"], .menu, #menu, .main-contents, #main-contents',
+    },
+  },
+  temairazu: {
+    name: '手間いらず',
+    login_url: 'https://sv50.temairazu.net/login',
+    selectors: {
+      username: 'input[name="login_id"]',
+      password: 'input[name="password"]',
+      submit: 'form#login button[type="submit"]',
+      success_indicator: '.logout, a[href*="logout"], .menu, #menu, .main-contents, #main-contents, .dashboard',
+    },
+  },
+  yoyakupro: {
+    name: '予約プロ',
+    login_url: 'https://manage.489pro-x.com/login',
+    selectors: {
+      username: 'input[name="login_id"]',
+      password: 'input[name="password"]',
+      submit: 'button[type="submit"]',
+      success_indicator: '.logout, a[href*="logout"], .menu, #menu, .main-contents, #main-contents, .dashboard, .sidebar',
+    },
+  },
+  tripla: {
+    name: 'tripla',
+    login_url: 'https://cm.tripla.ai/user/sign-in',
+    selectors: {
+      username: 'input[data-cy="input-email"]',
+      password: 'div[data-cy="input-password"] input[type="password"]',
+      submit: 'button[data-cy="btn-sign-in"]',
+      success_indicator: '.logout, a[href*="logout"], a[href*="sign-out"], .dashboard, .sidebar, .nav-user',
+    },
+  },
+  chillnn: {
+    name: 'CHILLNN',
+    login_url: 'https://admin.chillnn.com/auth/signin',
+    selectors: {
+      username: 'input[name="email"]',
+      password: 'input[name="password"]',
+      submit: 'button.w-full',
+      success_indicator: '.logout, a[href*="logout"], a[href*="signout"], .dashboard, .sidebar, nav',
+    },
+  },
+  minpakuin: {
+    name: 'ミンパクイン',
+    login_url: 'https://connect.minpakuin.jp/host/login',
+    selectors: {
+      username: 'input[name="login_id"]',
+      password: 'input[name="password"]',
+      submit: 'form.p-login button[type="submit"]',
+      success_indicator: '.logout, a[href*="logout"], .menu, #menu, .main-contents, #main-contents, .dashboard, .sidebar',
+    },
+  },
 };
 
-export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu'];
+export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu', 'dynaibe', 'temairazu', 'yoyakupro', 'tripla', 'chillnn', 'minpakuin'];
 
 /**
  * OTAパラメータのエイリアスマッピング
@@ -270,6 +363,27 @@ export const CHANNEL_ALIASES: Record<string, ChannelCode> = {
   tllincoln: 'lincoln',
   // るるぶ
   rurubu: 'rurubu',
+  // DYNA IBE
+  'dyna-ibe': 'dynaibe',
+  'dyna ibe': 'dynaibe',
+  dreserve: 'dynaibe',
+  // 手間いらず
+  temairazu: 'temairazu',
+  moana: 'temairazu',
+  '手間いらず': 'temairazu',
+  // 予約プロ
+  yoyakupro: 'yoyakupro',
+  '489pro': 'yoyakupro',
+  '予約プロ': 'yoyakupro',
+  // tripla
+  tripla: 'tripla',
+  トリプラ: 'tripla',
+  // CHILLNN
+  chillnn: 'chillnn',
+  チルン: 'chillnn',
+  // ミンパクイン
+  minpakuin: 'minpakuin',
+  ミンパクイン: 'minpakuin',
 };
 
 /**

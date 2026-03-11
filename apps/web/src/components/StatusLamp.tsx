@@ -1,25 +1,29 @@
+type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
+type DashboardStatus = 'success' | 'error' | 'running' | 'unregistered' | 'disabled';
+
 interface StatusLampProps {
-  status: 'healthy' | 'unhealthy' | 'unknown';
+  status: HealthStatus | DashboardStatus;
   size?: 'sm' | 'md';
 }
 
-export function StatusLamp({ status, size = 'md' }: StatusLampProps) {
-  const sizeClass = size === 'sm' ? 'w-2 h-2' : 'w-3 h-3';
-  const statusClass = {
-    healthy: 'status-lamp-healthy',
-    unhealthy: 'status-lamp-unhealthy',
-    unknown: 'status-lamp-unknown',
-  }[status];
+const STATUS_STYLES: Record<HealthStatus | DashboardStatus, { className: string; title: string }> = {
+  healthy: { className: 'bg-green-500', title: '正常' },
+  unhealthy: { className: 'bg-red-500', title: 'エラー' },
+  unknown: { className: 'bg-gray-400', title: '未確認' },
+  success: { className: 'bg-green-500', title: '正常' },
+  error: { className: 'bg-red-500', title: 'エラー' },
+  running: { className: 'bg-blue-500 animate-pulse', title: '実行中' },
+  unregistered: { className: 'bg-gray-400', title: '未登録' },
+  disabled: { className: 'bg-gray-300', title: '無効' },
+};
 
-  const title = {
-    healthy: '正常',
-    unhealthy: 'エラー',
-    unknown: '未確認',
-  }[status];
+export function StatusLamp({ status, size = 'md' }: StatusLampProps) {
+  const sizeClass = size === 'sm' ? 'w-2.5 h-2.5' : 'w-3 h-3';
+  const { className, title } = STATUS_STYLES[status];
 
   return (
     <div
-      className={`status-lamp ${sizeClass} ${statusClass}`}
+      className={`rounded-full ${sizeClass} ${className}`}
       title={title}
       role="status"
       aria-label={title}

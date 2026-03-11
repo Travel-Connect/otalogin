@@ -56,6 +56,14 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
   const [facilityForm, setFacilityForm] = useState({ name: facility.name, code: facility.code });
   const [facilitySaving, setFacilitySaving] = useState(false);
 
+  // 施設削除用の状態
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // 一括同期用の状態
+  const [bulkSyncDialogOpen, setBulkSyncDialogOpen] = useState(false);
+  const [bulkSyncing, setBulkSyncing] = useState(false);
+
   // 拡張機能の接続状態を確認
   const checkExtensionConnection = useCallback(async () => {
     const extensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
@@ -149,6 +157,60 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
       setError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
       setFacilitySaving(false);
+    }
+  };
+
+  // 施設を削除
+  const handleFacilityDelete = async () => {
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/facility/${facility.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '削除に失敗しました');
+      }
+
+      router.push('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '削除に失敗しました');
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  // 全チャネル一括同期
+  const handleBulkSync = async () => {
+    setBulkSyncing(true);
+    setBulkSyncDialogOpen(false);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/master-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facility_id: facility.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        let errorMsg = data.error || '同期に失敗しました';
+        if (data.details) errorMsg += ` (${data.details})`;
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      router.refresh();
+      setSuccessMessage(data.message || '一括同期が完了しました');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '同期に失敗しました');
+    } finally {
+      setBulkSyncing(false);
     }
   };
 
@@ -389,24 +451,67 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
             ) : (
               <div className="flex items-center gap-3">
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900">{facility.name}</h1>
+                  <h1 className="text-xl font-bold text-gray-900 flex items-center gap-1.5">
+                    {facility.name}
+                    {facility.official_site_url && (
+                      <a
+                        href={facility.official_site_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-500 hover:text-indigo-700 transition-colors"
+                        title="公式サイトを開く"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    )}
+                  </h1>
                   <p className="text-sm text-gray-500">{facility.code}</p>
                 </div>
                 {isAdmin && (
-                  <button
-                    onClick={() => {
-                      setFacilityForm({ name: facility.name, code: facility.code });
-                      setFacilityEditMode(true);
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                    title="施設情報を編集"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        setFacilityForm({ name: facility.name, code: facility.code });
+                        setFacilityEditMode(true);
+                        setError(null);
+                        setSuccessMessage(null);
+                      }}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                      title="施設情報を編集"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setBulkSyncDialogOpen(true)}
+                      disabled={bulkSyncing}
+                      className="text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                      title="全チャネル一括同期"
+                    >
+                      {bulkSyncing ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setDeleteDialogOpen(true)}
+                      className="text-gray-400 hover:text-red-600 transition-colors"
+                      title="施設を削除"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -551,6 +656,29 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
         cancelLabel="キャンセル"
         onConfirm={handleSync}
         onCancel={() => setSyncDialogOpen(false)}
+      />
+
+      {/* 一括同期確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={bulkSyncDialogOpen}
+        title="全チャネル一括同期"
+        message={`「${facility.name}」の全チャネルのアカウント情報をマスタPWシートから一括同期します。既存の設定は上書きされます。`}
+        confirmLabel="一括同期する"
+        cancelLabel="キャンセル"
+        onConfirm={handleBulkSync}
+        onCancel={() => setBulkSyncDialogOpen(false)}
+      />
+
+      {/* 削除確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deleteDialogOpen}
+        title="施設を削除"
+        message={`「${facility.name}」を削除します。関連するすべてのアカウント情報、ヘルスチェック履歴、ショートカットも削除されます。この操作は取り消せません。`}
+        confirmLabel={deleting ? '削除中...' : '削除する'}
+        cancelLabel="キャンセル"
+        onConfirm={handleFacilityDelete}
+        onCancel={() => setDeleteDialogOpen(false)}
+        danger
       />
     </div>
   );
@@ -797,6 +925,26 @@ function UrlQuerySection({
 
   return (
     <div className="border-t pt-4 mt-4 space-y-3">
+      {/* 公開ページURL（スプレッドシートJ列から取得） */}
+      {account.public_page_url && (
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">公開ページURL</label>
+          <div className="flex items-center gap-2">
+            <a
+              href={account.public_page_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:text-blue-800 break-all"
+            >
+              {account.public_page_url}
+            </a>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-gray-400">
+              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </div>
+        </div>
+      )}
+
       <h4 className="text-sm font-medium text-gray-700">URLクエリパラメータ</h4>
       {error && <p className="text-sm text-red-600">{error}</p>}
       {success && <p className="text-sm text-green-600">{success}</p>}
