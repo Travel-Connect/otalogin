@@ -29,6 +29,7 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
     return (
       <ChannelTile
         key={ch.channel_id}
+        channelCode={ch.channel_code}
         channelName={ch.channel_name}
         shortName={visual.shortName}
         bgColor={visual.bgColor}
@@ -37,6 +38,7 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
         variant={variant}
         publicPageUrl={ch.public_page_url}
         faviconDomain={visual.faviconDomain}
+        logoUrl={ch.logo_url}
         linkOnly={config?.link_only}
         onClick={() => onChannelLogin(facility.id, ch.channel_id, ch.channel_code)}
       />

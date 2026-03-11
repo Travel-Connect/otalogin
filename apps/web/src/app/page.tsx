@@ -89,6 +89,7 @@ export default async function HomePage() {
             has_account: hasAccount,
             error_code: health?.last_error_code ?? null,
             public_page_url: publicPageUrl,
+            logo_url: channel.logo_url ?? null,
           };
         });
 

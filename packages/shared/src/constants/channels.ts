@@ -74,7 +74,7 @@ export const CHANNEL_VISUALS: Record<ChannelCode, ChannelVisual> = {
   tripla: { shortName: 'tripla', category: 'OTA', bgColor: '#E91E63', textColor: '#ffffff', faviconDomain: 'tripla.ai' },
   chillnn: { shortName: 'CHILLNN', category: 'OTA', bgColor: '#1A237E', textColor: '#ffffff', faviconDomain: 'chillnn.com' },
   minpakuin: { shortName: 'ミンパクイン', category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff', faviconDomain: 'minpakuin.jp' },
-  booking: { shortName: 'Booking', category: 'OTA', bgColor: '#003580', textColor: '#ffffff', faviconDomain: 'booking.com' },
+  booking: { shortName: 'Booking', category: 'OTA', bgColor: '#7B1FA2', textColor: '#ffffff', faviconDomain: 'booking.com' },
 };
 
 export interface ChannelConfig {

@@ -163,6 +163,8 @@ export interface DashboardChannelInfo {
   error_code: ErrorCodeType | null;
   /** 公開ページURL（login_url + public_url_query で構築済み） */
   public_page_url: string | null;
+  /** チャネルロゴURL（Supabase Storageにアップロード済み） */
+  logo_url: string | null;
 }
 
 export interface DashboardFacility {

@@ -9,6 +9,8 @@ interface ChannelLogoProps {
   disabled?: boolean;
   size?: 'sm' | 'md';
   faviconDomain?: string;
+  /** アップロード済みロゴURL（最優先） */
+  logoUrl?: string | null;
 }
 
 function initials(name: string) {
@@ -16,17 +18,20 @@ function initials(name: string) {
 }
 
 const SIZE_MAP = {
-  sm: { outer: 'w-10 h-10', text: 'text-xs', radius: 'rounded-lg', iconSize: 20 },
-  md: { outer: 'w-[52px] h-[52px]', text: 'text-sm', radius: 'rounded-xl', iconSize: 28 },
+  sm: { outer: 'w-10 h-10', text: 'text-xs', radius: 'rounded-lg', iconSize: 24 },
+  md: { outer: 'w-[52px] h-[52px]', text: 'text-sm', radius: 'rounded-xl', iconSize: 32 },
 };
 
-export function ChannelLogo({ shortName, bgColor, textColor, disabled = false, size = 'sm', faviconDomain }: ChannelLogoProps) {
+export function ChannelLogo({ shortName, bgColor, textColor, disabled = false, size = 'sm', faviconDomain, logoUrl }: ChannelLogoProps) {
   const s = SIZE_MAP[size];
   const bg = disabled ? '#E5E7EB' : bgColor;
   const color = disabled ? '#9CA3AF' : textColor;
   const [imgError, setImgError] = useState(false);
+  const [faviconError, setFaviconError] = useState(false);
 
-  const faviconUrl = faviconDomain && !disabled && !imgError
+  // Priority: uploaded logo > favicon > initials
+  const uploadedUrl = logoUrl && !disabled && !imgError ? logoUrl : null;
+  const faviconUrl = !uploadedUrl && faviconDomain && !disabled && !faviconError
     ? `https://www.google.com/s2/favicons?domain=${faviconDomain}&sz=64`
     : null;
 
@@ -35,14 +40,23 @@ export function ChannelLogo({ shortName, bgColor, textColor, disabled = false, s
       className={`${s.outer} ${s.radius} flex items-center justify-center flex-shrink-0 select-none`}
       style={{ backgroundColor: bg }}
     >
-      {faviconUrl ? (
+      {uploadedUrl ? (
+        <img
+          src={uploadedUrl}
+          alt={shortName}
+          width={s.iconSize}
+          height={s.iconSize}
+          className="rounded-sm object-contain"
+          onError={() => setImgError(true)}
+        />
+      ) : faviconUrl ? (
         <img
           src={faviconUrl}
           alt={shortName}
           width={s.iconSize}
           height={s.iconSize}
           className="rounded-sm"
-          onError={() => setImgError(true)}
+          onError={() => setFaviconError(true)}
         />
       ) : (
         <span className={`${s.text} font-bold leading-none`} style={{ color }}>
