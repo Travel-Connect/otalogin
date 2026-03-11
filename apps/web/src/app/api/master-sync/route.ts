@@ -141,6 +141,12 @@ export async function POST(request: NextRequest) {
       ミンパクイン: 'minpakuin',
       'booking.com': 'booking',
       booking: 'booking',
+      'trip.com': 'tripcom',
+      tripcom: 'tripcom',
+      agoda: 'agoda',
+      'agoda.com': 'agoda',
+      expedia: 'expedia',
+      'expedia.com': 'expedia',
     };
 
     // OTP認証チャネル（パスワード不要）

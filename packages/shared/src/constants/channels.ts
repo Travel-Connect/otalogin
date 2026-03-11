@@ -75,6 +75,9 @@ export const CHANNEL_VISUALS: Record<ChannelCode, ChannelVisual> = {
   chillnn: { shortName: 'CHILLNN', category: 'OTA', bgColor: '#1A237E', textColor: '#ffffff', faviconDomain: 'chillnn.com' },
   minpakuin: { shortName: 'ミンパクイン', category: 'Systems', bgColor: '#FF6F00', textColor: '#ffffff', faviconDomain: 'minpakuin.jp' },
   booking: { shortName: 'Booking', category: 'OTA', bgColor: '#7B1FA2', textColor: '#ffffff', faviconDomain: 'booking.com' },
+  tripcom: { shortName: 'Trip.com', category: 'OTA', bgColor: '#287DFA', textColor: '#ffffff', faviconDomain: 'trip.com' },
+  agoda: { shortName: 'Agoda', category: 'OTA', bgColor: '#5542F6', textColor: '#ffffff', faviconDomain: 'agoda.com' },
+  expedia: { shortName: 'Expedia', category: 'OTA', bgColor: '#00355F', textColor: '#ffffff', faviconDomain: 'expedia.co.jp' },
 };
 
 export interface ChannelConfig {
@@ -348,9 +351,24 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
     login_url: '',
     link_only: true,
   },
+  tripcom: {
+    name: 'Trip.com',
+    login_url: '',
+    link_only: true,
+  },
+  agoda: {
+    name: 'Agoda',
+    login_url: '',
+    link_only: true,
+  },
+  expedia: {
+    name: 'Expedia',
+    login_url: '',
+    link_only: true,
+  },
 };
 
-export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu', 'dynaibe', 'temairazu', 'yoyakupro', 'tripla', 'chillnn', 'minpakuin', 'booking'];
+export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu', 'dynaibe', 'temairazu', 'yoyakupro', 'tripla', 'chillnn', 'minpakuin', 'booking', 'tripcom', 'agoda', 'expedia'];
 
 /**
  * OTAパラメータのエイリアスマッピング
@@ -397,6 +415,18 @@ export const CHANNEL_ALIASES: Record<string, ChannelCode> = {
   // Booking.com
   booking: 'booking',
   'booking.com': 'booking',
+  // Trip.com
+  tripcom: 'tripcom',
+  'trip.com': 'tripcom',
+  トリップドットコム: 'tripcom',
+  // Agoda
+  agoda: 'agoda',
+  'agoda.com': 'agoda',
+  アゴダ: 'agoda',
+  // Expedia
+  expedia: 'expedia',
+  'expedia.com': 'expedia',
+  エクスペディア: 'expedia',
 };
 
 /**
