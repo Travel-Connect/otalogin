@@ -49,7 +49,11 @@ export default async function HomePage() {
 
       // Build dashboard data
       const dashboardFacilities: DashboardFacility[] = facilities.map((facility) => {
-        const facilityChannels: DashboardChannelInfo[] = (channels || []).map((channel) => {
+        const facilityChannels: DashboardChannelInfo[] = (channels || []).filter((channel) => {
+          return (accounts || []).some(
+            (a) => a.facility_id === facility.id && a.channel_id === channel.id
+          );
+        }).map((channel) => {
           const account = (accounts || []).find(
             (a) => a.facility_id === facility.id && a.channel_id === channel.id
           );
