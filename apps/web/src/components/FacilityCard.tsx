@@ -23,16 +23,25 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
     };
   }
 
+  function contrastText(hex: string): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    // YIQ brightness formula
+    return (r * 299 + g * 587 + b * 114) / 1000 >= 150 ? '#1f2937' : '#ffffff';
+  }
+
   function renderTile(ch: DashboardChannelInfo, variant: 'ota' | 'systems') {
     const visual = getVisual(ch.channel_code);
     const config = CHANNEL_CONFIGS[ch.channel_code as keyof typeof CHANNEL_CONFIGS];
+    const bg = ch.bg_color || visual.bgColor;
     return (
       <ChannelTile
         key={ch.channel_id}
         channelName={ch.channel_name}
         shortName={visual.shortName}
-        bgColor={ch.bg_color || visual.bgColor}
-        textColor={visual.textColor}
+        bgColor={bg}
+        textColor={contrastText(bg)}
         status={ch.status}
         variant={variant}
         publicPageUrl={ch.public_page_url}

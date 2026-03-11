@@ -103,11 +103,18 @@ export function ChannelLogoSettings({ channels }: Props) {
   const systemsChannels = channels.filter((c) => c.category === 'Systems');
   const otaChannels = channels.filter((c) => c.category !== 'Systems');
 
+  function contrastText(hex: string): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 >= 150 ? '#1f2937' : '#ffffff';
+  }
+
   const renderChannelRow = (channel: Channel) => {
     const visual = CHANNEL_VISUALS[channel.code as keyof typeof CHANNEL_VISUALS];
     const defaultBgColor = visual?.bgColor || '#6B7280';
     const currentBgColor = localColors[channel.code] || channel.bg_color || defaultBgColor;
-    const textColor = visual?.textColor || '#ffffff';
+    const textColor = contrastText(currentBgColor);
     const shortName = visual?.shortName || channel.code;
     const faviconDomain = visual?.faviconDomain;
     const isUploading = uploading === channel.code;
