@@ -78,6 +78,7 @@ export const CHANNEL_VISUALS: Record<ChannelCode, ChannelVisual> = {
   tripcom: { shortName: 'Trip.com', category: 'OTA', bgColor: '#287DFA', textColor: '#ffffff', faviconDomain: 'trip.com' },
   agoda: { shortName: 'Agoda', category: 'OTA', bgColor: '#5542F6', textColor: '#ffffff', faviconDomain: 'agoda.com' },
   expedia: { shortName: 'Expedia', category: 'OTA', bgColor: '#00355F', textColor: '#ffffff', faviconDomain: 'expedia.co.jp' },
+  airbnb: { shortName: 'Airbnb', category: 'OTA', bgColor: '#FF5A5F', textColor: '#ffffff', faviconDomain: 'airbnb.com' },
 };
 
 export interface ChannelConfig {
@@ -366,9 +367,14 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
     login_url: '',
     link_only: true,
   },
+  airbnb: {
+    name: 'Airbnb',
+    login_url: '',
+    link_only: true,
+  },
 };
 
-export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'jalan', 'neppan', 'ikyu', 'skyticket', 'churatoku', 'ots', 'lincoln', 'rurubu', 'dynaibe', 'temairazu', 'yoyakupro', 'tripla', 'chillnn', 'minpakuin', 'booking', 'tripcom', 'agoda', 'expedia'];
+export const CHANNEL_CODES: ChannelCode[] = ['rakuten', 'ikyu', 'jalan', 'rurubu', 'skyticket', 'ots', 'churatoku', 'booking', 'expedia', 'agoda', 'airbnb', 'tripcom', 'dynaibe', 'tripla', 'chillnn', 'yoyakupro', 'neppan', 'lincoln', 'temairazu', 'minpakuin'];
 
 /**
  * OTAパラメータのエイリアスマッピング
@@ -427,6 +433,11 @@ export const CHANNEL_ALIASES: Record<string, ChannelCode> = {
   expedia: 'expedia',
   'expedia.com': 'expedia',
   エクスペディア: 'expedia',
+  // Airbnb
+  airbnb: 'airbnb',
+  'airbnb.com': 'airbnb',
+  エアビー: 'airbnb',
+  エアビーアンドビー: 'airbnb',
 };
 
 /**

@@ -119,6 +119,18 @@ export interface Database {
           created_by: string | null;
         };
       };
+      neppan_password_alerts: {
+        Row: {
+          id: string;
+          facility_id: string;
+          site_name: string;
+          elapsed_text: string;
+          fetched_at: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['neppan_password_alerts']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['neppan_password_alerts']['Insert']>;
+      };
       user_shortcuts: {
         Row: {
           id: string;

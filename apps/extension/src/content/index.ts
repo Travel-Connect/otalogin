@@ -164,7 +164,7 @@ async function checkPendingLoginSuccess(): Promise<void> {
       );
       console.log('[OTALogin] Post login action result:', actionResult);
       if (!actionResult.success) {
-        await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error);
+        await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error, 'post_login_action');
         await chrome.storage.local.remove('pending_login_check');
         return;
       }
@@ -193,7 +193,7 @@ async function checkPendingLoginSuccess(): Promise<void> {
             pending.extra_fields
           );
           if (!actionResult.success) {
-            await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error);
+            await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error, 'post_login_action');
             await chrome.storage.local.remove('pending_login_check');
             return;
           }
@@ -205,7 +205,7 @@ async function checkPendingLoginSuccess(): Promise<void> {
         const authErrorMessage = detectAuthError();
         if (authErrorMessage) {
           console.log('[OTALogin] Auth error detected on page:', authErrorMessage);
-          await reportResult(pending.job_id, 'failed', 'AUTH_FAILED', authErrorMessage);
+          await reportResult(pending.job_id, 'failed', 'AUTH_FAILED', authErrorMessage, 'verify');
           await chrome.storage.local.remove('pending_login_check');
         } else {
           console.log('[OTALogin] Login form gone → treating as success (fallback)');
@@ -215,7 +215,7 @@ async function checkPendingLoginSuccess(): Promise<void> {
               pending.extra_fields
             );
             if (!actionResult.success) {
-              await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error);
+              await reportResult(pending.job_id, 'failed', 'UI_CHANGED', actionResult.error, 'post_login_action');
               await chrome.storage.local.remove('pending_login_check');
               return;
             }
@@ -521,6 +521,9 @@ async function selectFacility(
 // ページ読み込み時にチェック
 checkPendingLoginSuccess();
 
+// ねっぱん top.php のPW経過日数を抽出
+checkNeppanTopPage();
+
 /**
  * Background からのメッセージを受信
  */
@@ -671,7 +674,7 @@ async function executeMultiStepLogin(
         if (config.post_login_action) {
           const actionResult = await executePostLoginAction(config.post_login_action, extra_fields);
           if (!actionResult.success) {
-            await reportResult(job_id, 'failed', 'UI_CHANGED', actionResult.error);
+            await reportResult(job_id, 'failed', 'UI_CHANGED', actionResult.error, 'post_login_action');
             return { success: false, error: actionResult.error };
           }
         }
@@ -700,7 +703,7 @@ async function executeMultiStepLogin(
         const el = inp as HTMLInputElement;
         console.log(`[OTALogin]   input[${idx}]: type=${el.type} name=${el.name} id=${el.id} placeholder=${el.placeholder} data-cy=${el.getAttribute('data-cy')}`);
       });
-      await reportResult(job_id, 'failed', 'UI_CHANGED', `Input not found: ${step.input}`);
+      await reportResult(job_id, 'failed', 'UI_CHANGED', `Input not found: ${step.input}`, `multi_step_${i + 1}_form_fill`);
       return { success: false, error: `Input not found: ${step.input}` };
     }
     console.log(`[OTALogin] Input found:`, (input as HTMLElement).tagName, (input as HTMLInputElement).type, (input as HTMLInputElement).id || (input as HTMLInputElement).name);
@@ -708,7 +711,7 @@ async function executeMultiStepLogin(
     // 値を入力
     const value = values[step.value_key];
     if (!value) {
-      await reportResult(job_id, 'failed', 'UNKNOWN', `Value not found for key: ${step.value_key}`);
+      await reportResult(job_id, 'failed', 'UNKNOWN', `Value not found for key: ${step.value_key}`, `multi_step_${i + 1}_form_fill`);
       return { success: false, error: `Value not found for key: ${step.value_key}` };
     }
     await typeIntoField(input, value);
@@ -727,7 +730,7 @@ async function executeMultiStepLogin(
         const el = btn as HTMLElement;
         console.log(`[OTALogin]   button[${idx}]: type=${el.getAttribute('type')} text="${el.textContent?.trim().substring(0, 50)}" class="${el.className.substring(0, 80)}" data-cy=${el.getAttribute('data-cy')}`);
       });
-      await reportResult(job_id, 'failed', 'UI_CHANGED', `Submit button not found: ${step.submit}`);
+      await reportResult(job_id, 'failed', 'UI_CHANGED', `Submit button not found: ${step.submit}`, `multi_step_${i + 1}_submit`);
       return { success: false, error: `Submit button not found: ${step.submit}` };
     }
     console.log(`[OTALogin] Submit button found:`, (submitButton as HTMLElement).tagName, (submitButton as HTMLElement).textContent?.trim().substring(0, 30));
@@ -758,7 +761,7 @@ async function executeMultiStepLogin(
       const waitSelector = step.wait_for || steps[i + 1].input;
       const nextElement = await waitForElement(waitSelector, 15000);
       if (!nextElement) {
-        await reportResult(job_id, 'failed', 'TIMEOUT', `Next step not appeared: ${waitSelector}`);
+        await reportResult(job_id, 'failed', 'TIMEOUT', `Next step not appeared: ${waitSelector}`, `multi_step_${i + 1}_wait_next`);
         return { success: false, error: `Next step not appeared: ${waitSelector}` };
       }
       // 要素が表示されるまで少し待機
@@ -840,7 +843,7 @@ async function executeSingleStepLogin(
   const usernameInput = await waitForElement(selectors.username);
   console.log('[OTALogin] usernameInput found:', !!usernameInput);
   if (!usernameInput) {
-    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Username input not found');
+    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Username input not found', 'form_fill');
     return { success: false, error: 'Username input not found' };
   }
   await typeIntoField(usernameInput, login_id);
@@ -850,7 +853,7 @@ async function executeSingleStepLogin(
   const passwordInput = await waitForElement(selectors.password);
   console.log('[OTALogin] passwordInput found:', !!passwordInput);
   if (!passwordInput) {
-    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Password input not found');
+    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Password input not found', 'form_fill');
     return { success: false, error: 'Password input not found' };
   }
   await typeIntoField(passwordInput, password);
@@ -875,7 +878,7 @@ async function executeSingleStepLogin(
   const submitButton = await waitForElement(selectors.submit);
   console.log('[OTALogin] submitButton found:', !!submitButton);
   if (!submitButton) {
-    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Submit button not found');
+    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Submit button not found', 'submit');
     return { success: false, error: 'Submit button not found' };
   }
 
@@ -938,7 +941,7 @@ async function executeSingleStepLogin(
     const authErrorMessage = detectAuthError();
     if (authErrorMessage) {
       await chrome.storage.local.remove('pending_login_check');
-      await reportResult(job_id, 'failed', 'AUTH_FAILED', authErrorMessage);
+      await reportResult(job_id, 'failed', 'AUTH_FAILED', authErrorMessage, 'verify');
       return { success: false, error: authErrorMessage };
     }
     // フォールバック: ログインフォームが消えていれば成功とみなす
@@ -1350,20 +1353,93 @@ function waitForLoginSuccessOrRedirect(selector: string, timeout = 30000): Promi
 
 /**
  * 結果をBackground Scriptに報告
+ * 失敗時は自動的にページURL・タイトル・処理ステップを付与
  */
 async function reportResult(
   jobId: string,
   status: 'success' | 'failed',
   errorCode?: ErrorCode,
-  errorMessage?: string
+  errorMessage?: string,
+  step?: string
 ): Promise<void> {
+  let finalMessage = errorMessage;
+  if (status === 'failed' && errorMessage) {
+    const parts = [`step=${step || 'unknown'}`];
+    parts.push(`url=${window.location.href}`);
+    parts.push(`title=${document.title || '(empty)'}`);
+    parts.push(`detail=${errorMessage}`);
+    finalMessage = parts.join(', ');
+  }
   chrome.runtime.sendMessage({
     type: 'LOGIN_RESULT',
     payload: {
       job_id: jobId,
       status,
       error_code: errorCode,
-      error_message: errorMessage,
+      error_message: finalMessage,
     },
+  });
+}
+
+/**
+ * ねっぱん top.php からアラート情報を抽出
+ * 標準3列（サイト名、巡回、直近巡回）以降にテキストがある場合に抽出する
+ * パスワード変更経過日数以外のアラートにも対応
+ */
+function extractNeppanPasswordAlerts(): Array<{ site_name: string; elapsed_text: string }> {
+  const alerts: Array<{ site_name: string; elapsed_text: string }> = [];
+  const rows = document.querySelectorAll('#salesSiteItems tr');
+
+  for (const row of rows) {
+    const cells = row.querySelectorAll('td');
+    if (cells.length < 3) continue;
+
+    // 1列目: サイト名
+    const nameEl = cells[0].querySelector('#salesSiteName');
+    const siteName = nameEl?.textContent?.trim();
+    if (!siteName) continue;
+
+    // 4列目以降: アラートテキスト（列が存在しテキストがある場合のみ）
+    const extraTexts: string[] = [];
+    for (let i = 3; i < cells.length; i++) {
+      const text = cells[i]?.textContent?.trim();
+      if (text) {
+        extraTexts.push(text);
+      }
+    }
+
+    if (extraTexts.length > 0) {
+      alerts.push({ site_name: siteName, elapsed_text: extraTexts.join(' / ') });
+    }
+  }
+
+  return alerts;
+}
+
+/**
+ * ねっぱん top.php を検出し、PW経過日数データを抽出してBackground Scriptに送信
+ */
+async function checkNeppanTopPage(): Promise<void> {
+  // neppan.net/top.php のみ対象
+  if (!window.location.hostname.includes('neppan.net')) return;
+  if (!window.location.pathname.includes('top.php')) return;
+  if (window.self !== window.top) return; // iframe内は対象外
+
+  console.log('[OTALogin] Neppan top.php detected, extracting password alerts...');
+
+  // テーブルが描画されるまで少し待機
+  await sleep(2000);
+
+  const alerts = extractNeppanPasswordAlerts();
+  if (alerts.length === 0) {
+    console.log('[OTALogin] No password alerts found on Neppan top page');
+    return;
+  }
+
+  console.log('[OTALogin] Neppan password alerts extracted:', alerts);
+
+  chrome.runtime.sendMessage({
+    type: 'NEPPAN_PASSWORD_ALERTS',
+    payload: { alerts },
   });
 }

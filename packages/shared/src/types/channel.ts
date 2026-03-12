@@ -7,7 +7,7 @@ export interface Channel {
   updated_at: string;
 }
 
-export type ChannelCode = 'rakuten' | 'jalan' | 'neppan' | 'ikyu' | 'skyticket' | 'churatoku' | 'ots' | 'rurubu' | 'lincoln' | 'dynaibe' | 'temairazu' | 'yoyakupro' | 'tripla' | 'chillnn' | 'minpakuin' | 'booking' | 'tripcom' | 'agoda' | 'expedia';
+export type ChannelCode = 'rakuten' | 'jalan' | 'neppan' | 'ikyu' | 'skyticket' | 'churatoku' | 'ots' | 'rurubu' | 'lincoln' | 'dynaibe' | 'temairazu' | 'yoyakupro' | 'tripla' | 'chillnn' | 'minpakuin' | 'booking' | 'tripcom' | 'agoda' | 'expedia' | 'airbnb';
 
 export interface ChannelHealthStatus {
   id: string;

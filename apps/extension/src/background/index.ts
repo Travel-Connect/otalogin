@@ -12,11 +12,17 @@ import type {
 } from '@otalogin/shared';
 import { extractAndSanitizeQuery } from '@otalogin/shared';
 
-// 設定
-const CONFIG = {
-  portalUrl: 'http://localhost:4000', // TODO: 環境変数から取得
-  apiBaseUrl: 'http://localhost:4000/api',
-};
+// デフォルト設定（ストレージにportal_urlがない場合のフォールバック）
+const DEFAULT_PORTAL_URL = 'http://localhost:4000';
+
+/**
+ * ストレージからポータルURLを取得し、API Base URLを返す
+ */
+async function getApiBaseUrl(): Promise<string> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.portalUrl);
+  const portalUrl = result[STORAGE_KEYS.portalUrl] || DEFAULT_PORTAL_URL;
+  return `${portalUrl}/api`;
+}
 
 // ストレージキー
 const STORAGE_KEYS = {
@@ -34,10 +40,11 @@ const POLLING_INTERVAL_MINUTES = 1;
 // 処理中フラグ（並列実行防止）
 let isProcessingJobs = false;
 
-// 開発用: 初回起動時に自動でトークンを設定
-(async function initDevMode() {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.deviceToken);
+// 初回起動時の初期化
+(async function init() {
+  const result = await chrome.storage.local.get([STORAGE_KEYS.deviceToken, STORAGE_KEYS.portalUrl]);
   if (!result[STORAGE_KEYS.deviceToken]) {
+    // 開発用: トークン未設定時に自動でデフォルトを設定
     await chrome.storage.local.set({
       [STORAGE_KEYS.deviceToken]: 'dev-token-12345',
       [STORAGE_KEYS.deviceName]: '開発PC',
@@ -45,10 +52,12 @@ let isProcessingJobs = false;
     });
     console.log('[DEV] 開発用トークンを自動設定しました');
   }
-  // portalUrl は常に CONFIG に合わせて更新（開発中のポート変更に対応）
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.portalUrl]: CONFIG.portalUrl,
-  });
+  // portalUrl が未設定の場合のみデフォルトを設定（ペアリング済みの場合は上書きしない）
+  if (!result[STORAGE_KEYS.portalUrl]) {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.portalUrl]: DEFAULT_PORTAL_URL,
+    });
+  }
   // ポーリングを開始
   await setupPollingAlarm();
 })();
@@ -94,7 +103,8 @@ async function pollAndProcessJobs(): Promise<void> {
   console.log('[Polling] ジョブをチェック中...');
 
   try {
-    const response = await fetch(`${CONFIG.apiBaseUrl}/extension/jobs`, {
+    const apiBaseUrl = await getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/extension/jobs`, {
       headers: { Authorization: `Bearer ${deviceToken}` },
     });
 
@@ -217,7 +227,7 @@ async function processHealthCheckJob(
     });
 
     if (!tab.id) {
-      await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', 'タブ作成失敗');
+      await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', `step=tab_open, detail=タブ作成失敗`);
       return;
     }
 
@@ -238,7 +248,7 @@ async function processHealthCheckJob(
       });
     } catch {
       // Content script にメッセージを送れない場合
-      await reportJobResultWithCode(job.id, 'failed', 'UI_CHANGED', 'Content Scriptとの通信失敗');
+      await reportJobResultWithCode(job.id, 'failed', 'UI_CHANGED', `step=messaging, url=${credentials.login_url}, detail=Content Scriptとの通信失敗`);
       await chrome.tabs.remove(tab.id);
       return;
     }
@@ -266,7 +276,8 @@ async function reportJobResultWithCode(
   const deviceToken = await getDeviceToken();
   if (!deviceToken) return;
 
-  await fetch(`${CONFIG.apiBaseUrl}/extension/report`, {
+  const apiBaseUrl = await getApiBaseUrl();
+  await fetch(`${apiBaseUrl}/extension/report`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -408,7 +419,7 @@ async function handleDispatchLogin(
 
     // その他のエラー
     if (result.status === 'error') {
-      return { success: false, error: `Failed to fetch job: ${result.message}` };
+      return { success: false, error: `step=fetch_credentials, detail=Failed to fetch job: ${result.message}` };
     }
 
     // 成功: credentials を取得
@@ -526,8 +537,9 @@ async function fetchJobCredentials(
   deviceToken: string
 ): Promise<FetchCredentialsResult> {
   try {
+    const apiBaseUrl = await getApiBaseUrl();
     const response = await fetch(
-      `${CONFIG.apiBaseUrl}/extension/job/${jobId}`,
+      `${apiBaseUrl}/extension/job/${jobId}`,
       {
         headers: {
           Authorization: `Bearer ${deviceToken}`,
@@ -649,6 +661,16 @@ chrome.runtime.onMessage.addListener(
           .then(() => sendResponse({ success: true }))
           .catch(() => sendResponse({ success: false }));
         return true;
+
+      case 'NEPPAN_PASSWORD_ALERTS':
+        // ねっぱん top.php から抽出したPW経過日数データをAPIに送信
+        handleNeppanPasswordAlerts(
+          message.payload as { alerts: Array<{ site_name: string; elapsed_text: string }> },
+          sender
+        )
+          .then(() => sendResponse({ success: true }))
+          .catch(() => sendResponse({ success: false }));
+        return true;
     }
   }
 );
@@ -666,12 +688,46 @@ async function reportJobResult(result: {
   const deviceToken = await getDeviceToken();
   if (!deviceToken) return;
 
-  await fetch(`${CONFIG.apiBaseUrl}/extension/report`, {
+  const apiBaseUrl = await getApiBaseUrl();
+  await fetch(`${apiBaseUrl}/extension/report`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${deviceToken}`,
     },
     body: JSON.stringify(result),
+  });
+}
+
+/**
+ * ねっぱん top.php から抽出したPW経過日数データをAPIに送信
+ * sender.tab.url からホスト名を特定し、施設IDの解決はAPI側で行う
+ */
+async function handleNeppanPasswordAlerts(
+  payload: { alerts: Array<{ site_name: string; elapsed_text: string }> },
+  sender: chrome.runtime.MessageSender
+): Promise<void> {
+  const deviceToken = await getDeviceToken();
+  if (!deviceToken) return;
+
+  const tabUrl = sender.tab?.url;
+  if (!tabUrl) return;
+
+  // www{N}.neppan.net からホスト名を取得（施設特定用）
+  const hostname = new URL(tabUrl).hostname;
+
+  console.log('[NeppanAlerts] Sending password alerts:', payload.alerts.length, 'items from', hostname);
+
+  const apiBaseUrl = await getApiBaseUrl();
+  await fetch(`${apiBaseUrl}/extension/neppan-alerts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${deviceToken}`,
+    },
+    body: JSON.stringify({
+      hostname,
+      alerts: payload.alerts,
+    }),
   });
 }
