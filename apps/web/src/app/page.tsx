@@ -3,7 +3,7 @@ import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDashboard } from '@/components/FacilityDashboard';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import type { DashboardFacility, DashboardChannelInfo, DashboardChannelStatus } from '@/lib/supabase/types';
-import { CHANNEL_VISUALS, buildFullUrl } from '@otalogin/shared';
+import { CHANNEL_VISUALS, CHANNEL_CODES, buildFullUrl } from '@otalogin/shared';
 
 export default async function HomePage() {
   const isDevelopmentMode = !isSupabaseConfigured();
@@ -48,8 +48,15 @@ export default async function HomePage() {
       }
 
       // Build dashboard data
+      // Sort channels by CHANNEL_CODES order
+      const sortedChannels = [...(channels || [])].sort((a, b) => {
+        const aIndex = CHANNEL_CODES.indexOf(a.code as typeof CHANNEL_CODES[number]);
+        const bIndex = CHANNEL_CODES.indexOf(b.code as typeof CHANNEL_CODES[number]);
+        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+      });
+
       const dashboardFacilities: DashboardFacility[] = facilities.map((facility) => {
-        const facilityChannels: DashboardChannelInfo[] = (channels || []).filter((channel) => {
+        const facilityChannels: DashboardChannelInfo[] = sortedChannels.filter((channel) => {
           return (accounts || []).some(
             (a) => a.facility_id === facility.id && a.channel_id === channel.id
           );
