@@ -233,6 +233,8 @@ async function processHealthCheckJob(
 
     // タブの読み込み完了を待つ
     await waitForTabLoad(tab.id);
+    // Content Script の初期化を待つ
+    await sleep(1500);
 
     // Content Script にログイン情報を送信
     try {

@@ -139,6 +139,68 @@ async function upsertAlerts(
         { onConflict: 'facility_id,site_name' }
       );
   }
+
+  // TC Portal のお知らせに送信
+  await notifyTcPortal(supabase, facilityId, alerts);
+}
+
+/**
+ * TC Portal のお知らせ Webhook にアラートを送信
+ * 施設ごとに1つのお知らせとしてまとめる
+ */
+async function notifyTcPortal(
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+  facilityId: string,
+  alerts: Array<{ site_name: string; elapsed_text: string }>
+) {
+  const webhookUrl = process.env.TC_PORTAL_WEBHOOK_URL;
+  const webhookKey = process.env.TC_PORTAL_WEBHOOK_KEY;
+
+  if (!webhookUrl || !webhookKey) {
+    console.log('[neppan-alerts] TC Portal webhook not configured, skipping');
+    return;
+  }
+
+  try {
+    // 施設名を取得
+    let facilityName = '不明な施設';
+    if (supabase) {
+      const { data: facility } = await supabase
+        .from('facilities')
+        .select('name')
+        .eq('id', facilityId)
+        .single();
+      if (facility) {
+        facilityName = facility.name;
+      }
+    }
+
+    const title = `⚠ ねっぱん PW変更アラート: ${facilityName}`;
+    const body = alerts
+      .map((a) => `・${a.site_name}: ${a.elapsed_text}`)
+      .join('\n');
+    const today = new Date().toISOString().slice(0, 10);
+    const externalRef = `neppan-pw:${facilityId}:${today}`;
+
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Key': webhookKey,
+      },
+      body: JSON.stringify({ title, body, external_ref: externalRef }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[neppan-alerts] TC Portal webhook failed: ${res.status} ${text}`);
+    } else {
+      const result = await res.json();
+      console.log(`[neppan-alerts] TC Portal announcement ${result.action}: ${result.id}`);
+    }
+  } catch (err) {
+    console.error('[neppan-alerts] TC Portal webhook error:', err);
+  }
 }
 
 /**
