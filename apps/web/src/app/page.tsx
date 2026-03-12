@@ -29,7 +29,7 @@ export default async function HomePage() {
       ] = await Promise.all([
         supabase.from('facilities').select('*').order('name'),
         supabase.from('channels').select('*').order('name'),
-        supabase.from('facility_accounts').select('id, facility_id, channel_id, login_url, public_url_query, public_page_url').eq('account_type', 'shared').is('user_email', null),
+        supabase.from('facility_accounts').select('id, facility_id, channel_id, login_url, public_url_query, public_page_url, user_email').eq('account_type', 'shared'),
         supabase.from('channel_health_status').select('facility_id, channel_id, status, last_error_code'),
         supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
       ]);
