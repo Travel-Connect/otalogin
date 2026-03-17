@@ -44,13 +44,10 @@ let isProcessingJobs = false;
 (async function init() {
   const result = await chrome.storage.local.get([STORAGE_KEYS.deviceToken, STORAGE_KEYS.portalUrl]);
   if (!result[STORAGE_KEYS.deviceToken]) {
-    // 開発用: トークン未設定時に自動でデフォルトを設定
+    // トークン未設定時はポーリングのみ有効化（ペアリングで正式トークンが設定される）
     await chrome.storage.local.set({
-      [STORAGE_KEYS.deviceToken]: 'dev-token-12345',
-      [STORAGE_KEYS.deviceName]: '開発PC',
       [STORAGE_KEYS.pollingEnabled]: true,
     });
-    console.log('[DEV] 開発用トークンを自動設定しました');
   }
   // portalUrl が未設定の場合のみデフォルトを設定（ペアリング済みの場合は上書きしない）
   if (!result[STORAGE_KEYS.portalUrl]) {
