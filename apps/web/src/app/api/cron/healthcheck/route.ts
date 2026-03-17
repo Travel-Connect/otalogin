@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { CHANNEL_CONFIGS } from '@otalogin/shared';
 
 // Vercel Cron: 毎日 20:00 UTC (= 05:00 JST)
 // vercel.json で設定
+
+// リンクオンリーのチャネルコードを取得（ログイン自動化が不要なOTA）
+const LINK_ONLY_CODES = Object.entries(CHANNEL_CONFIGS)
+  .filter(([, config]) => config.link_only)
+  .map(([code]) => code);
 
 export async function GET(request: NextRequest) {
   // CRON_SECRET で認証（開発時はスキップ可能）
@@ -18,11 +24,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
 
-    // shared アカウントを持つ全ての facility × channel を取得
-    const { data: accounts, error: accountsError } = await supabase
+    // リンクオンリーのチャネルIDを取得（ヘルスチェック不要）
+    let linkOnlyChannelIds: string[] = [];
+    if (LINK_ONLY_CODES.length > 0) {
+      const { data: linkOnlyChannels } = await supabase
+        .from('channels')
+        .select('id')
+        .in('code', LINK_ONLY_CODES);
+      linkOnlyChannelIds = (linkOnlyChannels || []).map((c) => c.id);
+    }
+
+    // shared アカウントを持つ全ての facility × channel を取得（リンクオンリー除外）
+    let query = supabase
       .from('facility_accounts')
       .select('facility_id, channel_id')
       .eq('account_type', 'shared');
+
+    if (linkOnlyChannelIds.length > 0) {
+      // not in で link_only チャネルを除外
+      query = query.not('channel_id', 'in', `(${linkOnlyChannelIds.join(',')})`);
+    }
+
+    const { data: accounts, error: accountsError } = await query;
 
     if (accountsError) {
       throw accountsError;

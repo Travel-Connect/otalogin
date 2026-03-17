@@ -219,6 +219,20 @@ async function processHealthCheckJob(
     // 成功: credentials を取得
     const credentials = result.credentials;
 
+    // リダイレクト対策: タブ作成前に pending_job を保存
+    // sendMessage が失敗しても、Content Script が checkPendingLoginSuccess で拾える
+    await chrome.storage.local.set({
+      pending_job: {
+        job_id: credentials.job_id,
+        channel_code: credentials.channel_code,
+        login_id: credentials.login_id,
+        password: credentials.password,
+        extra_fields: credentials.extra_fields,
+        expires_at: Date.now() + 120000, // 2分間有効
+      },
+    });
+    console.log(`[HealthCheck] pending_job を保存 (job: ${job.id})`);
+
     // タブを作成してログイン実行
     const tab = await chrome.tabs.create({
       url: credentials.login_url,
@@ -227,40 +241,39 @@ async function processHealthCheckJob(
     });
 
     if (!tab.id) {
+      await chrome.storage.local.remove('pending_job');
       await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', `step=tab_open, detail=タブ作成失敗`);
       return;
     }
 
-    // タブの読み込み完了を待つ
-    await waitForTabLoad(tab.id);
-    // Content Script の初期化を待つ
-    await sleep(1500);
+    // タブの読み込み完了を待つ（リダイレクト対応版）
+    await waitForTabLoadWithRedirects(tab.id);
 
-    // Content Script にログイン情報を送信
-    try {
-      await chrome.tabs.sendMessage(tab.id, {
-        type: 'EXECUTE_LOGIN',
-        payload: {
-          job_id: credentials.job_id,
-          channel_code: credentials.channel_code,
-          login_id: credentials.login_id,
-          password: credentials.password,
-          extra_fields: credentials.extra_fields,
-        },
-      });
-    } catch {
-      // Content script にメッセージを送れない場合
-      await reportJobResultWithCode(job.id, 'failed', 'UI_CHANGED', `step=messaging, url=${credentials.login_url}, detail=Content Scriptとの通信失敗`);
-      await chrome.tabs.remove(tab.id);
-      return;
+    // Content Script にログイン情報を送信（リトライ付き）
+    const sent = await sendMessageWithRetry(tab.id, {
+      type: 'EXECUTE_LOGIN',
+      payload: {
+        job_id: credentials.job_id,
+        channel_code: credentials.channel_code,
+        login_id: credentials.login_id,
+        password: credentials.password,
+        extra_fields: credentials.extra_fields,
+      },
+    });
+
+    if (sent) {
+      // sendMessage 成功 → pending_job は Content Script 側で消費される
+      const durationMs = Date.now() - startTime;
+      console.log(`[HealthCheck] ジョブ ${job.id} 開始 (${durationMs}ms)`);
+    } else {
+      // sendMessage 失敗 → pending_job フォールバックに頼る
+      console.log(`[HealthCheck] sendMessage 失敗、pending_job フォールバックを使用 (job: ${job.id})`);
     }
 
     // 結果を待つ（Content Script から報告される）
     // タイムアウト処理は Content Script 側で行う
-
-    const durationMs = Date.now() - startTime;
-    console.log(`[HealthCheck] ジョブ ${job.id} 開始 (${durationMs}ms)`);
   } catch (error) {
+    await chrome.storage.local.remove('pending_job');
     const message = error instanceof Error ? error.message : 'Unknown error';
     await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', message);
   }
@@ -593,6 +606,78 @@ function waitForTabLoad(tabId: number): Promise<void> {
       resolve();
     }, 30000);
   });
+}
+
+/**
+ * リダイレクト対応版: タブの読み込み完了を待つ
+ * 最後の 'complete' から 500ms 安定したら完了とみなす（リダイレクト中の中間 complete を無視）
+ */
+function waitForTabLoadWithRedirects(tabId: number): Promise<void> {
+  return new Promise((resolve) => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let resolved = false;
+
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    };
+
+    const listener = (
+      updatedTabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo
+    ) => {
+      if (updatedTabId !== tabId) return;
+
+      if (changeInfo.status === 'complete') {
+        // リダイレクト中の中間 complete を無視するためデバウンス
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(finish, 500);
+      } else if (changeInfo.status === 'loading') {
+        // リダイレクトが始まった → デバウンスタイマーをリセット
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(listener);
+
+    // 既に complete の場合のチェック
+    chrome.tabs.get(tabId).then((tab) => {
+      if (tab.status === 'complete') {
+        debounceTimer = setTimeout(finish, 500);
+      }
+    }).catch(() => finish());
+
+    // タイムアウト（30秒）
+    setTimeout(finish, 30000);
+  });
+}
+
+/**
+ * Content Script へのメッセージ送信（リトライ付き）
+ * 1.5s → 3s → 6s のバックオフでリトライ
+ */
+async function sendMessageWithRetry(
+  tabId: number,
+  message: object,
+  maxRetries = 3
+): Promise<boolean> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await chrome.tabs.sendMessage(tabId, message);
+      return true;
+    } catch {
+      const waitMs = 1500 * Math.pow(2, i);
+      console.log(`[HealthCheck] sendMessage リトライ ${i + 1}/${maxRetries} (${waitMs}ms 後)`);
+      await sleep(waitMs);
+    }
+  }
+  return false;
 }
 
 
