@@ -259,7 +259,7 @@ async function processHealthCheckJob(
         password: credentials.password,
         extra_fields: credentials.extra_fields,
       },
-    });
+    }, 2);
 
     if (sent) {
       // sendMessage 成功 → pending_job は Content Script 側で消費される
