@@ -41,17 +41,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Google Sheets API クライアントを作成
-    const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
-    );
+    // Google Sheets API クライアントを作成（サービスアカウント）
+    const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!serviceAccountKey) {
+      return NextResponse.json({ error: 'Google Service Account key not configured' }, { status: 500 });
+    }
 
-    oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    const credentials = JSON.parse(serviceAccountKey);
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
-    const sheets = google.sheets({ version: 'v4', auth: oauth2Client });
+    const sheets = google.sheets({ version: 'v4', auth });
 
     // マスタPWシートからデータを取得
     // シート形式: A=施設ID | B=施設名 | C=OTA | D=ID | E=PW | F=ログインURL | G=オペレータID(一休) | H=契約コード(ねっぱん) | I=施設ID(楽天) | J=公開ページURL | K=るるぶ施設コード | L=ユーザーメール(リンカーン用)
