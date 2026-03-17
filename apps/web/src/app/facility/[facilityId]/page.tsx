@@ -190,6 +190,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
         public_url_query: account.public_url_query as Record<string, string> | null,
         public_page_url: account.public_page_url as string | null,
         admin_url_query: account.admin_url_query as Record<string, string> | null,
+        health_check_enabled: account.health_check_enabled ?? true,
       };
     }
 

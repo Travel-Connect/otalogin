@@ -38,7 +38,8 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('facility_accounts')
       .select('facility_id, channel_id')
-      .eq('account_type', 'shared');
+      .eq('account_type', 'shared')
+      .eq('health_check_enabled', true);
 
     if (linkOnlyChannelIds.length > 0) {
       // not in で link_only チャネルを除外

@@ -600,7 +600,31 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                {/* ヘルスチェック有効/無効トグル */}
+                {currentChannel.account && (
+                  <label className="flex items-center gap-1.5 text-sm text-gray-600 mr-2 cursor-pointer" title="毎朝5:00の自動ログインチェック">
+                    <input
+                      type="checkbox"
+                      checked={currentChannel.account.health_check_enabled}
+                      onChange={async (e) => {
+                        const enabled = e.target.checked;
+                        try {
+                          const res = await fetch('/api/facility/account/health-check-toggle', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ account_id: currentChannel.account!.id, enabled }),
+                          });
+                          if (res.ok) {
+                            router.refresh();
+                          }
+                        } catch { /* ignore */ }
+                      }}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    巡回
+                  </label>
+                )}
                 {!editMode && isAdmin && (
                   <button
                     onClick={() => setSyncDialogOpen(true)}

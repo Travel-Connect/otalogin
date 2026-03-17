@@ -221,6 +221,7 @@ export interface AccountData {
   public_url_query: Record<string, string> | null;
   public_page_url: string | null;
   admin_url_query: Record<string, string> | null;
+  health_check_enabled: boolean;
 }
 
 export interface FieldDefinition {
