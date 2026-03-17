@@ -138,7 +138,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
   ] = await Promise.all([
     getCachedMasterData(),
     supabase.from('facilities').select('*').eq('id', facilityId).single(),
-    supabase.from('facility_accounts').select('*').eq('facility_id', facilityId).eq('account_type', 'shared').is('user_email', null),
+    supabase.from('facility_accounts').select('*').eq('facility_id', facilityId).eq('account_type', 'shared').or(`user_email.is.null,user_email.eq.${user.email}`),
     supabase.from('channel_health_status').select('*').eq('facility_id', facilityId),
     supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
   ]);

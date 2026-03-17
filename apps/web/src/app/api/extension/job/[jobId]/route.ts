@@ -76,31 +76,57 @@ export async function GET(request: NextRequest, { params }: Props) {
     type AccountRow = { id: string; login_id: string; password: string; password_encrypted: string | null; login_url: string | null };
     let account: AccountRow | null = null;
 
-    if (channelData?.code === 'lincoln' && job.created_by) {
-      // リンカーン: ユーザー情報取得と共有クレデンシャルを並列取得
-      const [userDataResult, sharedResult] = await Promise.all([
-        supabase.auth.admin.getUserById(job.created_by),
-        supabase
+    if (channelData?.code === 'lincoln') {
+      // リンカーン: ユーザー別 → 共有 → 任意のユーザー別（ヘルスチェック用）の順で検索
+      if (job.created_by) {
+        // 手動ログイン: ユーザー情報取得と共有クレデンシャルを並列取得
+        const [userDataResult, sharedResult] = await Promise.all([
+          supabase.auth.admin.getUserById(job.created_by),
+          supabase
+            .from('facility_accounts')
+            .select('id, login_id, password, password_encrypted, login_url')
+            .eq('facility_id', job.facility_id)
+            .eq('channel_id', job.channel_id)
+            .is('user_email', null)
+            .maybeSingle(),
+        ]);
+
+        const userEmail = userDataResult.data?.user?.email;
+        if (userEmail) {
+          const { data: userAccount } = await supabase
+            .from('facility_accounts')
+            .select('id, login_id, password, password_encrypted, login_url')
+            .eq('facility_id', job.facility_id)
+            .eq('channel_id', job.channel_id)
+            .eq('user_email', userEmail)
+            .maybeSingle();
+          account = userAccount || sharedResult.data;
+        } else {
+          account = sharedResult.data;
+        }
+      } else {
+        // ヘルスチェック: 共有アカウント → 任意のユーザー別アカウント（最初の1件）
+        const { data: sharedAccount } = await supabase
           .from('facility_accounts')
           .select('id, login_id, password, password_encrypted, login_url')
           .eq('facility_id', job.facility_id)
           .eq('channel_id', job.channel_id)
           .is('user_email', null)
-          .maybeSingle(),
-      ]);
-
-      const userEmail = userDataResult.data?.user?.email;
-      if (userEmail) {
-        const { data: userAccount } = await supabase
-          .from('facility_accounts')
-          .select('id, login_id, password, password_encrypted, login_url')
-          .eq('facility_id', job.facility_id)
-          .eq('channel_id', job.channel_id)
-          .eq('user_email', userEmail)
           .maybeSingle();
-        account = userAccount || sharedResult.data;
-      } else {
-        account = sharedResult.data;
+
+        if (!sharedAccount) {
+          // 共有アカウントがなければ任意のユーザー別アカウントを使用
+          const { data: anyAccount } = await supabase
+            .from('facility_accounts')
+            .select('id, login_id, password, password_encrypted, login_url')
+            .eq('facility_id', job.facility_id)
+            .eq('channel_id', job.channel_id)
+            .limit(1)
+            .maybeSingle();
+          account = anyAccount;
+        } else {
+          account = sharedAccount;
+        }
       }
     } else {
       const { data: sharedAccount } = await supabase
