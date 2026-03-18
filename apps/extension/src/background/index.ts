@@ -411,7 +411,7 @@ async function handleDispatchLogin(
   try {
     // 新しいジョブを開始する前に、古いpending状態をクリア
     // これにより、以前のジョブの残骸が新しいジョブに影響しないようにする
-    await chrome.storage.local.remove(['pending_job', 'pending_login_check', 'close_tab_after_login']);
+    await chrome.storage.local.remove(['pending_job', 'pending_login_check']);
     console.log('[DISPATCH_LOGIN] Cleared old pending states');
 
     const deviceToken = await getDeviceToken();
@@ -462,19 +462,23 @@ async function handleDispatchLogin(
     });
     console.log('[DISPATCH_LOGIN] Saved pending_job to storage (redirect safety net)');
 
-    // use_same_tab: ログイン完了後に送信元タブを閉じるため、タブIDを記録
-    if (use_same_tab && sender.tab?.id) {
-      await chrome.storage.local.set({
-        close_tab_after_login: sender.tab.id,
-      });
-      console.log('[DISPATCH_LOGIN] Will close sender tab after login:', sender.tab.id);
-    }
+    const senderTabId = use_same_tab ? sender.tab?.id : undefined;
 
     const tab = await chrome.tabs.create({
       url: credentials.login_url,
       windowId: windowId,
       active: true,
     });
+
+    // OTAタブが開いたら中間タブを即座に閉じる（体感速度向上）
+    if (senderTabId) {
+      try {
+        await chrome.tabs.remove(senderTabId);
+        console.log('[DISPATCH_LOGIN] Closed sender tab immediately:', senderTabId);
+      } catch {
+        console.log('[DISPATCH_LOGIN] Sender tab already closed:', senderTabId);
+      }
+    }
 
     // Content Script にログイン情報を送信
     await waitForTabLoad(tab.id!);
@@ -704,13 +708,7 @@ chrome.runtime.onMessage.addListener(
             error_code?: string;
             error_message?: string;
           };
-          // reportJobResult と closeTabAfterLogin を独立して実行
-          // Content Script が sendResponse を待たない fire-and-forget のため、
-          // Promise チェーンではなく並列実行で確実に closeTabAfterLogin を呼ぶ
-          Promise.all([
-            reportJobResult(loginResult),
-            closeTabAfterLogin(),
-          ])
+          reportJobResult(loginResult)
             .then(() => sendResponse({ success: true }))
             .catch(() => sendResponse({ success: false }));
         }
@@ -800,24 +798,6 @@ async function reportJobResult(result: {
   });
 }
 
-/**
- * ログイン完了後に、ディープリンク中間タブを閉じる
- * use_same_tab で DISPATCH_LOGIN された場合のみ動作
- */
-async function closeTabAfterLogin(): Promise<void> {
-  const result = await chrome.storage.local.get('close_tab_after_login');
-  const tabId = result.close_tab_after_login as number | undefined;
-  if (!tabId) return;
-
-  await chrome.storage.local.remove('close_tab_after_login');
-  try {
-    await chrome.tabs.remove(tabId);
-    console.log('[DISPATCH_LOGIN] Closed sender tab:', tabId);
-  } catch {
-    // タブが既に閉じられている場合は無視
-    console.log('[DISPATCH_LOGIN] Sender tab already closed:', tabId);
-  }
-}
 
 /**
  * ねっぱん top.php から抽出したPW経過日数データをAPIに送信

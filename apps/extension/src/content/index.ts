@@ -81,6 +81,26 @@ async function checkPendingLoginSuccess(): Promise<void> {
             extra_fields: pendingJob.extra_fields,
           });
           return;
+        } else if (pendingConfig?.success_indicator) {
+          // ログインフォームが無いが、success_indicator が存在する場合は既にログイン済み
+          // → ログインステップをスキップして post_login_action を直接実行
+          const successEl = document.querySelector(pendingConfig.success_indicator);
+          if (successEl && pendingConfig.post_login_action) {
+            console.log('[OTALogin] Already logged in (success_indicator present), executing post_login_action directly');
+            await chrome.storage.local.remove('pending_job');
+            const actionResult = await executePostLoginAction(
+              pendingConfig.post_login_action,
+              pendingJob.extra_fields,
+            );
+            if (actionResult.success) {
+              await reportResult(pendingJob.job_id, 'success');
+            } else {
+              await reportResult(pendingJob.job_id, 'failed', 'UI_CHANGED', actionResult.error, 'post_login_action');
+            }
+            return;
+          } else {
+            console.log('[OTALogin] Login form not in top frame (likely in iframe), skipping pending_job fallback');
+          }
         } else {
           console.log('[OTALogin] Login form not in top frame (likely in iframe), skipping pending_job fallback');
         }
