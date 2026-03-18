@@ -84,7 +84,9 @@ async function checkPendingLoginSuccess(): Promise<void> {
         } else if (pendingConfig?.success_indicator) {
           // ログインフォームが無いが、success_indicator が存在する場合は既にログイン済み
           // → ログインステップをスキップして post_login_action を直接実行
-          const successEl = document.querySelector(pendingConfig.success_indicator);
+          // React SPAはレンダリングに時間がかかるため、success_indicatorの出現を待つ
+          console.log('[OTALogin] Login form not found, checking if already logged in (waiting for success_indicator)...');
+          const successEl = await waitForElement(pendingConfig.success_indicator, 10000);
           if (successEl && pendingConfig.post_login_action) {
             console.log('[OTALogin] Already logged in (success_indicator present), executing post_login_action directly');
             await chrome.storage.local.remove('pending_job');
