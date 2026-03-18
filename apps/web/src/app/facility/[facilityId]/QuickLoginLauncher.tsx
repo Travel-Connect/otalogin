@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 
 interface Props {
   facilityId: string;
@@ -12,11 +11,10 @@ interface Props {
 /**
  * ディープリンク run=1 用の即時ランチャー
  * ジョブ作成済みの状態で拡張にDISPATCH_LOGINを送信し、
- * 即座に施設詳細ページにリダイレクトする（中間画面なし）
+ * 拡張がこのタブを自動的に閉じる（close_sender_tab: true）
  */
 export function QuickLoginLauncher({ facilityId, channelCode, jobId }: Props) {
   const dispatched = useRef(false);
-  const router = useRouter();
 
   useEffect(() => {
     if (dispatched.current) return;
@@ -26,14 +24,13 @@ export function QuickLoginLauncher({ facilityId, channelCode, jobId }: Props) {
     if (extensionId && typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.sendMessage(extensionId, {
         type: 'DISPATCH_LOGIN',
-        payload: { job_id: jobId },
+        payload: { job_id: jobId, close_sender_tab: true },
       });
+    } else {
+      // 拡張なしの場合は施設詳細にフォールバック
+      window.location.replace(`/facility/${facilityId}?channel=${channelCode}`);
     }
+  }, [jobId, facilityId, channelCode]);
 
-    // 即座に施設詳細ページにリダイレクト（run=1 なしで無限ループ防止）
-    router.replace(`/facility/${facilityId}?channel=${channelCode}`);
-  }, [jobId, facilityId, channelCode, router]);
-
-  // リダイレクトまでの一瞬だけ表示（ほぼ見えない）
   return null;
 }
