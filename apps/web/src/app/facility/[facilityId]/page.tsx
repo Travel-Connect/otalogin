@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { createClient, createServiceClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDetail } from './FacilityDetail';
+import { AutoLoginDispatcher } from './AutoLoginDispatcher';
 import { resolveChannelCode } from '@otalogin/shared';
 import type { FacilityDetailData, ChannelWithAccount } from '@/lib/supabase/types';
 
@@ -126,6 +127,36 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     ).toString();
     const returnTo = searchParamsStr ? `${currentPath}?${searchParamsStr}` : currentPath;
     redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+  }
+
+  // run=1 ファストパス: チャネルマスタ（キャッシュ）と施設名だけ取得し、即座にディスパッチ
+  if (autoRun) {
+    const [masterData, { data: facility }] = await Promise.all([
+      getCachedMasterData(),
+      supabase.from('facilities').select('id, name').eq('id', facilityId).single(),
+    ]);
+
+    if (!facility) notFound();
+
+    const channelList = (masterData.channels || []).map(ch => ({ id: ch.id, code: ch.code, name: ch.name }));
+    const deepLinkChannel = resolveDeepLinkChannel(query, channelList);
+
+    if (deepLinkChannel) {
+      const channel = channelList.find(ch => ch.code === deepLinkChannel);
+      if (channel) {
+        const fallbackUrl = `/facility/${facilityId}?channel=${deepLinkChannel}`;
+        return (
+          <AutoLoginDispatcher
+            facilityId={facilityId}
+            facilityName={facility.name}
+            channelId={channel.id}
+            channelName={channel.name}
+            fallbackUrl={fallbackUrl}
+          />
+        );
+      }
+    }
+    // チャネル解決できなかった場合はフルページにフォールスルー
   }
 
   // マスタデータ（キャッシュ済み）と施設固有データを並列取得
