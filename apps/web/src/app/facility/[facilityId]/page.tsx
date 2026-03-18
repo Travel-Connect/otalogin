@@ -165,8 +165,6 @@ export default async function FacilityPage({ params, searchParams }: Props) {
               return (
                 <QuickLoginLauncher
                   facilityId={facilityId}
-                  facilityName={facilityRow.name}
-                  channelName={channel.name}
                   channelCode={channel.code}
                   jobId={job.id}
                 />
