@@ -20,7 +20,7 @@ const DEFAULT_PORTAL_URL = 'http://localhost:4000';
  */
 async function getApiBaseUrl(): Promise<string> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.portalUrl);
-  const portalUrl = result[STORAGE_KEYS.portalUrl] || DEFAULT_PORTAL_URL;
+  const portalUrl = (result[STORAGE_KEYS.portalUrl] || DEFAULT_PORTAL_URL).replace(/\/+$/, '');
   return `${portalUrl}/api`;
 }
 
