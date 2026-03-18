@@ -98,18 +98,17 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
     setLoginMessage(null);
 
     try {
-      const [isConnected, response] = await Promise.all([
-        checkExtensionConnection(),
-        fetch('/api/extension/dispatch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ facility_id: facilityId, channel_id: channelId }),
-        }),
-      ]);
-
+      // 先にPINGで接続確認（孤立ジョブ防止: 接続失敗時にジョブを作らない）
+      const isConnected = await checkExtensionConnection();
       if (!isConnected) {
         throw new Error('Chrome拡張が接続されていません');
       }
+
+      const response = await fetch('/api/extension/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facility_id: facilityId, channel_id: channelId }),
+      });
 
       if (!response.ok) {
         const data = await response.json();

@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       return addCorsHeaders(NextResponse.json({ error: 'Database not configured' }, { status: 500 }));
     }
 
-    // ジョブのステータスを更新（error_code も保存）
-    const { error: updateError } = await supabase
+    // ジョブのステータスを更新し、ヘルスステータス更新に必要な情報も同時に取得（1クエリ）
+    const { data: job, error: updateError } = await supabase
       .from('automation_jobs')
       .update({
         status,
@@ -43,18 +43,13 @@ export async function POST(request: NextRequest) {
         error_code: error_code || null,
         error_message: error_message || null,
       })
-      .eq('id', job_id);
+      .eq('id', job_id)
+      .select('facility_id, channel_id, job_type')
+      .single();
 
     if (updateError) {
       throw updateError;
     }
-
-    // ジョブ情報を取得してヘルスステータスを更新
-    const { data: job } = await supabase
-      .from('automation_jobs')
-      .select('facility_id, channel_id, job_type')
-      .eq('id', job_id)
-      .single();
 
     if (job) {
       // channel_health_status を upsert（last_error_code も保存）

@@ -28,43 +28,29 @@ export async function GET(request: NextRequest, { params }: Props) {
       return addCorsHeaders(NextResponse.json({ error: 'Database not configured' }, { status: 500 }));
     }
 
-    // ジョブ取得とclaim を同時に実行（claim は pending→in_progress の原子更新）
-    const [jobResult, claimResult] = await Promise.all([
-      supabase
-        .from('automation_jobs')
-        .select(`
-          id,
-          facility_id,
-          channel_id,
-          job_type,
-          status,
-          created_by,
-          channels (
-            code,
-            login_url
-          )
-        `)
-        .eq('id', jobId)
-        .single(),
-      supabase
-        .from('automation_jobs')
-        .update({ status: 'in_progress', started_at: new Date().toISOString() })
-        .eq('id', jobId)
-        .eq('status', 'pending')
-        .select('id')
-        .single(),
-    ]);
+    // CLAIM と取得を単一クエリで実行（pending→in_progress の原子更新 + データ返却）
+    const { data: job, error: claimError } = await supabase
+      .from('automation_jobs')
+      .update({ status: 'in_progress', started_at: new Date().toISOString() })
+      .eq('id', jobId)
+      .eq('status', 'pending')
+      .select(`
+        id,
+        facility_id,
+        channel_id,
+        job_type,
+        created_by,
+        channels (
+          code,
+          login_url
+        )
+      `)
+      .single();
 
-    const { data: job, error: jobError } = jobResult;
-    const { data: claimedJob, error: claimError } = claimResult;
-
-    if (jobError || !job) {
-      return addCorsHeaders(NextResponse.json({ error: 'Job not found' }, { status: 404 }));
-    }
-
-    if (claimError || !claimedJob) {
+    if (claimError || !job) {
+      // PGRST116 = no rows returned → 既にclaim済みまたはジョブが存在しない
       return addCorsHeaders(NextResponse.json(
-        { error: 'Job already claimed or not in pending status' },
+        { error: 'Job already claimed or not found' },
         { status: 409 }
       ));
     }

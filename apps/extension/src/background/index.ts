@@ -134,7 +134,7 @@ async function pollAndProcessJobs(): Promise<void> {
 
     // ジョブを順次処理（1件ずつ）
     for (const job of jobs) {
-      await processHealthCheckJob(job, windowId, deviceToken);
+      await processHealthCheckJob(job, windowId, deviceToken, apiBaseUrl);
       // レート制限のため少し待機
       await sleep(3000);
     }
@@ -188,7 +188,8 @@ async function getOrCreateMonitorWindow(): Promise<number | null> {
 async function processHealthCheckJob(
   job: { id: string; login_url?: string; channel_code?: string },
   windowId: number,
-  deviceToken: string
+  deviceToken: string,
+  apiBaseUrl: string,
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -209,7 +210,7 @@ async function processHealthCheckJob(
 
     // その他のエラー
     if (result.status === 'error') {
-      await reportJobResultWithCode(job.id, 'failed', 'NETWORK_ERROR', result.message);
+      await reportJobResultWithCode(job.id, 'failed', 'NETWORK_ERROR', result.message, deviceToken, apiBaseUrl);
       return;
     }
 
@@ -239,7 +240,7 @@ async function processHealthCheckJob(
 
     if (!tab.id) {
       await chrome.storage.local.remove('pending_job');
-      await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', `step=tab_open, detail=タブ作成失敗`);
+      await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', `step=tab_open, detail=タブ作成失敗`, deviceToken, apiBaseUrl);
       return;
     }
 
@@ -272,7 +273,7 @@ async function processHealthCheckJob(
   } catch (error) {
     await chrome.storage.local.remove('pending_job');
     const message = error instanceof Error ? error.message : 'Unknown error';
-    await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', message);
+    await reportJobResultWithCode(job.id, 'failed', 'UNKNOWN', message, deviceToken, apiBaseUrl);
   }
 }
 
@@ -283,12 +284,14 @@ async function reportJobResultWithCode(
   jobId: string,
   status: 'success' | 'failed',
   errorCode?: string,
-  errorMessage?: string
+  errorMessage?: string,
+  cachedDeviceToken?: string,
+  cachedApiBaseUrl?: string,
 ): Promise<void> {
-  const deviceToken = await getDeviceToken();
+  const deviceToken = cachedDeviceToken || await getDeviceToken();
   if (!deviceToken) return;
 
-  const apiBaseUrl = await getApiBaseUrl();
+  const apiBaseUrl = cachedApiBaseUrl || await getApiBaseUrl();
   await fetch(`${apiBaseUrl}/extension/report`, {
     method: 'POST',
     headers: {

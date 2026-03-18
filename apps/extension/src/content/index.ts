@@ -61,9 +61,9 @@ async function checkPendingLoginSuccess(): Promise<void> {
     const pendingConfig = CHANNEL_CONFIGS[pendingJob.channel_code];
 
     if (window.self === window.top) {
-      // トップフレーム: EXECUTE_LOGIN を先に待つ
+      // トップフレーム: EXECUTE_LOGIN を先に待つ（タブ読み込み完了後すぐ送信されるため500msで十分）
       console.log('[OTALogin] Found pending_job, waiting for EXECUTE_LOGIN message first...');
-      await sleep(1500);
+      await sleep(500);
 
       const recheck = await chrome.storage.local.get('pending_job');
       const stillPending = recheck.pending_job as PendingJob | undefined;
