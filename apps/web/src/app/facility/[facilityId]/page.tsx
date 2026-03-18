@@ -2,7 +2,6 @@ import { redirect, notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
 import { createClient, createServiceClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDetail } from './FacilityDetail';
-import { QuickLoginLauncher } from './QuickLoginLauncher';
 import { resolveChannelCode } from '@otalogin/shared';
 import type { FacilityDetailData, ChannelWithAccount } from '@/lib/supabase/types';
 
@@ -127,54 +126,6 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     ).toString();
     const returnTo = searchParamsStr ? `${currentPath}?${searchParamsStr}` : currentPath;
     redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-  }
-
-  // ファストパス: run=1 の場合、ジョブ作成と最小限のデータ取得のみ
-  if (autoRun) {
-    const serviceClient = await createServiceClient();
-    if (serviceClient) {
-      // チャネルマスタ（キャッシュ済み）と施設名を並列取得
-      const [masterData, { data: facilityRow }] = await Promise.all([
-        getCachedMasterData(),
-        supabase.from('facilities').select('id, name').eq('id', facilityId).single(),
-      ]);
-
-      if (facilityRow && masterData.channels) {
-        const deepLinkChannel = resolveDeepLinkChannel(
-          query,
-          masterData.channels.map(ch => ({ id: ch.id, code: ch.code }))
-        );
-
-        if (deepLinkChannel) {
-          const channel = masterData.channels.find(ch => ch.code === deepLinkChannel);
-          if (channel) {
-            // ジョブをサーバーサイドで作成
-            const { data: job, error: jobError } = await supabase
-              .from('automation_jobs')
-              .insert({
-                facility_id: facilityId,
-                channel_id: channel.id,
-                job_type: 'manual_login',
-                status: 'pending',
-                created_by: user.id,
-              })
-              .select('id')
-              .single();
-
-            if (job && !jobError) {
-              return (
-                <QuickLoginLauncher
-                  facilityId={facilityId}
-                  channelCode={channel.code}
-                  jobId={job.id}
-                />
-              );
-            }
-          }
-        }
-      }
-    }
-    // ファストパス失敗時は通常の施設詳細ページにフォールバック
   }
 
   // マスタデータ（キャッシュ済み）と施設固有データを並列取得

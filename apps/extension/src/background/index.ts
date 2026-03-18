@@ -399,15 +399,10 @@ async function getExtensionStatus(): Promise<ExtensionResponse> {
  * 重要: sender.tab.windowId を使って同一ウィンドウにタブを追加
  */
 async function handleDispatchLogin(
-  payload: DispatchLoginPayload & { close_sender_tab?: boolean },
+  payload: DispatchLoginPayload,
   sender: chrome.runtime.MessageSender
 ): Promise<ExtensionResponse> {
-  const { job_id, close_sender_tab } = payload;
-
-  // ディープリンク経由の場合、送信元タブを即座に閉じる
-  if (close_sender_tab && sender.tab?.id) {
-    chrome.tabs.remove(sender.tab.id).catch(() => {});
-  }
+  const { job_id } = payload;
 
   try {
     // 新しいジョブを開始する前に、古いpending状態をクリア
