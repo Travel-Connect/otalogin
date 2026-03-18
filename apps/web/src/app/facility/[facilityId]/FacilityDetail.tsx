@@ -111,10 +111,10 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
     if (!autoRun || autoRunTriggered.current) return;
     if (extensionConnected === null) return; // 接続チェック中は待機
     autoRunTriggered.current = true;
-    // 少し遅延させてUIが描画された後に実行
+    // 最小限の遅延でUI描画後に実行
     const timer = setTimeout(() => {
       handleLogin();
-    }, 500);
+    }, 100);
     return () => clearTimeout(timer);
   }, [autoRun, extensionConnected]); // handleLogin is intentionally omitted to run only once
 
@@ -330,22 +330,20 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
         throw new Error('アカウント情報が設定されていません。先にアカウントを設定してください。');
       }
 
-      // 拡張接続確認とジョブ作成を並列実行
-      const [isConnected, response] = await Promise.all([
-        checkExtensionConnection(),
-        fetch('/api/extension/dispatch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            facility_id: facility.id,
-            channel_id: currentChannel.id,
-          }),
-        }),
-      ]);
-
-      if (!isConnected) {
+      // 拡張接続はマウント時のPINGチェック結果を利用（重複PINGを省略）
+      if (!extensionConnected) {
         throw new Error('Chrome拡張が接続されていません。拡張機能をインストールしてページを再読み込みしてください。');
       }
+
+      // ジョブ作成
+      const response = await fetch('/api/extension/dispatch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facility_id: facility.id,
+          channel_id: currentChannel.id,
+        }),
+      });
 
       if (!response.ok) {
         const data = await response.json();
@@ -371,11 +369,9 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
               setIsLoggingIn(false);
             } else if (response?.success) {
               setSuccessMessage('ログイン処理を開始しました。新しいタブが開きます。');
-              // 少し待ってからページを更新（結果を反映するため）
-              setTimeout(() => {
-                router.refresh();
-                setIsLoggingIn(false);
-              }, 3000);
+              setIsLoggingIn(false);
+              // 状態反映のためページを更新
+              setTimeout(() => router.refresh(), 500);
             } else {
               setError(response?.error || 'ログイン実行に失敗しました');
               setIsLoggingIn(false);
