@@ -697,15 +697,23 @@ chrome.runtime.onMessage.addListener(
   ) => {
     switch (message.type) {
       case 'LOGIN_RESULT':
-        reportJobResult(message.payload as {
-          job_id: string;
-          status: 'success' | 'failed';
-          error_code?: string;
-          error_message?: string;
-        })
-          .then(() => closeTabAfterLogin())
-          .then(() => sendResponse({ success: true }))
-          .catch(() => sendResponse({ success: false }));
+        {
+          const loginResult = message.payload as {
+            job_id: string;
+            status: 'success' | 'failed';
+            error_code?: string;
+            error_message?: string;
+          };
+          // reportJobResult と closeTabAfterLogin を独立して実行
+          // Content Script が sendResponse を待たない fire-and-forget のため、
+          // Promise チェーンではなく並列実行で確実に closeTabAfterLogin を呼ぶ
+          Promise.all([
+            reportJobResult(loginResult),
+            closeTabAfterLogin(),
+          ])
+            .then(() => sendResponse({ success: true }))
+            .catch(() => sendResponse({ success: false }));
+        }
         return true;
 
       case 'SET_MONITOR_WINDOW':
