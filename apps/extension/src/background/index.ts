@@ -399,8 +399,8 @@ async function getExtensionStatus(): Promise<ExtensionResponse> {
 
 /**
  * ログイン実行の処理
- * use_same_tab=true: 送信元タブ自体をOTAサイトに遷移（ディープリンク用、タブ1つで完結）
- * use_same_tab=false/未指定: 同一ウィンドウに新規タブを追加（ダッシュボード用）
+ * use_same_tab=true: ログイン完了後に送信元タブ（ディープリンク中間ページ）を自動で閉じる
+ * use_same_tab=false/未指定: 送信元タブ（ダッシュボード）はそのまま残す
  */
 async function handleDispatchLogin(
   payload: DispatchLoginPayload,
@@ -411,7 +411,7 @@ async function handleDispatchLogin(
   try {
     // 新しいジョブを開始する前に、古いpending状態をクリア
     // これにより、以前のジョブの残骸が新しいジョブに影響しないようにする
-    await chrome.storage.local.remove(['pending_job', 'pending_login_check']);
+    await chrome.storage.local.remove(['pending_job', 'pending_login_check', 'close_tab_after_login']);
     console.log('[DISPATCH_LOGIN] Cleared old pending states');
 
     const deviceToken = await getDeviceToken();
@@ -441,7 +441,13 @@ async function handleDispatchLogin(
     // 成功: credentials を取得
     const credentials = result.credentials;
 
-    // リダイレクト対策: タブ遷移/作成前に pending_job を保存
+    // 同一ウィンドウに新規タブを追加
+    const windowId = sender.tab?.windowId;
+    if (!windowId) {
+      return { success: false, error: 'Could not determine window ID' };
+    }
+
+    // リダイレクト対策: タブ作成前に pending_job を保存
     // ページがリダイレクトされて EXECUTE_LOGIN が届かなくても、
     // リダイレクト先の content script が checkPendingLoginSuccess で拾える
     await chrome.storage.local.set({
@@ -456,40 +462,12 @@ async function handleDispatchLogin(
     });
     console.log('[DISPATCH_LOGIN] Saved pending_job to storage (redirect safety net)');
 
+    // use_same_tab: ログイン完了後に送信元タブを閉じるため、タブIDを記録
     if (use_same_tab && sender.tab?.id) {
-      // 同一タブ遷移モード: 送信元タブをOTAサイトに遷移させる
-      // レスポンスを先に返し、その後ナビゲーションを実行
-      // （ナビゲーション後はポータルページが破棄されるため、レスポンスは届かない可能性がある）
-      const senderTabId = sender.tab.id;
-      setTimeout(async () => {
-        try {
-          await chrome.tabs.update(senderTabId, { url: credentials.login_url });
-          await waitForTabLoad(senderTabId);
-          try {
-            await chrome.tabs.sendMessage(senderTabId, {
-              type: 'EXECUTE_LOGIN',
-              payload: {
-                job_id: credentials.job_id,
-                channel_code: credentials.channel_code,
-                login_id: credentials.login_id,
-                password: credentials.password,
-                extra_fields: credentials.extra_fields,
-              },
-            });
-          } catch {
-            console.log('[DISPATCH_LOGIN] same-tab sendMessage failed, relying on pending_job');
-          }
-        } catch (err) {
-          console.error('[DISPATCH_LOGIN] same-tab navigation failed:', err);
-        }
-      }, 0);
-      return { success: true, data: { tab_id: senderTabId, same_tab: true } };
-    }
-
-    // 通常モード: 同一ウィンドウに新規タブを追加
-    const windowId = sender.tab?.windowId;
-    if (!windowId) {
-      return { success: false, error: 'Could not determine window ID' };
+      await chrome.storage.local.set({
+        close_tab_after_login: sender.tab.id,
+      });
+      console.log('[DISPATCH_LOGIN] Will close sender tab after login:', sender.tab.id);
     }
 
     const tab = await chrome.tabs.create({
@@ -725,6 +703,7 @@ chrome.runtime.onMessage.addListener(
           error_code?: string;
           error_message?: string;
         })
+          .then(() => closeTabAfterLogin())
           .then(() => sendResponse({ success: true }))
           .catch(() => sendResponse({ success: false }));
         return true;
@@ -811,6 +790,25 @@ async function reportJobResult(result: {
     },
     body: JSON.stringify(result),
   });
+}
+
+/**
+ * ログイン完了後に、ディープリンク中間タブを閉じる
+ * use_same_tab で DISPATCH_LOGIN された場合のみ動作
+ */
+async function closeTabAfterLogin(): Promise<void> {
+  const result = await chrome.storage.local.get('close_tab_after_login');
+  const tabId = result.close_tab_after_login as number | undefined;
+  if (!tabId) return;
+
+  await chrome.storage.local.remove('close_tab_after_login');
+  try {
+    await chrome.tabs.remove(tabId);
+    console.log('[DISPATCH_LOGIN] Closed sender tab:', tabId);
+  } catch {
+    // タブが既に閉じられている場合は無視
+    console.log('[DISPATCH_LOGIN] Sender tab already closed:', tabId);
+  }
 }
 
 /**
