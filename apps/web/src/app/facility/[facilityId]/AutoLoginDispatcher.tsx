@@ -26,8 +26,9 @@ interface Props {
 
 /**
  * ディープリンク run=1 用の軽量ログインディスパッチャー
- * - PING → dispatch API → DISPATCH_LOGIN → タブを閉じる/リダイレクト
+ * - PING → dispatch API → DISPATCH_LOGIN(use_same_tab) → 同一タブがOTAサイトに遷移
  * - 全データフェッチ不要、最小限のJSで高速実行
+ * - タブ1つで完結（拡張が同一タブをOTAサイトに遷移させる）
  */
 export function AutoLoginDispatcher({ facilityId, channelId, channelName, fallbackUrl }: Props) {
   const dispatched = useRef(false);
@@ -81,37 +82,26 @@ export function AutoLoginDispatcher({ facilityId, channelId, channelName, fallba
 
         const data = await response.json();
 
-        // 3. 拡張にディスパッチ
-        await new Promise<void>((resolve, reject) => {
-          chrome.runtime.sendMessage(
-            extensionId,
-            {
-              type: 'DISPATCH_LOGIN',
-              payload: { job_id: data.job_id },
-            },
-            (res) => {
-              const extResponse = res as ExtensionResponse | undefined;
-              if (chrome.runtime.lastError) {
-                reject(new Error(chrome.runtime.lastError.message || '拡張との通信に失敗'));
-              } else if (!extResponse?.success) {
-                reject(new Error(extResponse?.error || 'ディスパッチに失敗'));
-              } else {
-                resolve();
-              }
-            }
-          );
-        });
-
-        // 4. 成功 → タブを閉じるか、ダッシュボードにリダイレクト
+        // 3. 拡張にディスパッチ（use_same_tab: このタブ自体をOTAサイトに遷移）
+        // 拡張はレスポンスを返した直後にこのタブをナビゲーションするため、
+        // コールバックが届かない場合がある → fire-and-forget で送信
         setStatus('done');
+        chrome.runtime.sendMessage(
+          extensionId,
+          {
+            type: 'DISPATCH_LOGIN',
+            payload: { job_id: data.job_id, use_same_tab: true },
+          },
+          () => {
+            // レスポンスが届けばOK、届かなくても拡張がタブを遷移済み
+            if (chrome.runtime.lastError) {
+              console.log('[AutoLogin] sendMessage callback error (expected if tab navigated):', chrome.runtime.lastError.message);
+            }
+          }
+        );
 
-        // window.close() はスクリプトが開いたタブでのみ動作
-        // キーボードショートカット経由の場合は閉じられないので、リダイレクトにフォールバック
-        window.close();
-        // window.close() が効かなかった場合（200ms後にまだ生きていたら）
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 200);
+        // 拡張がタブを遷移させるまでの間、ローディング表示を維持
+        // エラーの場合は拡張側でpending_jobフォールバックが働く
 
       } catch (err) {
         setStatus('error');

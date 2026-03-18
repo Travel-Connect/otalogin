@@ -14,6 +14,8 @@ export interface DispatchLoginPayload {
   job_id: string;
   channel_code: string;
   facility_id: string;
+  /** true の場合、新規タブを開かず送信元タブ自体をOTAサイトに遷移させる */
+  use_same_tab?: boolean;
 }
 
 export interface SyncUrlQueryPayload {

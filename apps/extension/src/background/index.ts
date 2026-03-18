@@ -399,13 +399,14 @@ async function getExtensionStatus(): Promise<ExtensionResponse> {
 
 /**
  * ログイン実行の処理
- * 重要: sender.tab.windowId を使って同一ウィンドウにタブを追加
+ * use_same_tab=true: 送信元タブ自体をOTAサイトに遷移（ディープリンク用、タブ1つで完結）
+ * use_same_tab=false/未指定: 同一ウィンドウに新規タブを追加（ダッシュボード用）
  */
 async function handleDispatchLogin(
   payload: DispatchLoginPayload,
   sender: chrome.runtime.MessageSender
 ): Promise<ExtensionResponse> {
-  const { job_id } = payload;
+  const { job_id, use_same_tab } = payload;
 
   try {
     // 新しいジョブを開始する前に、古いpending状態をクリア
@@ -440,13 +441,7 @@ async function handleDispatchLogin(
     // 成功: credentials を取得
     const credentials = result.credentials;
 
-    // 同一ウィンドウにタブを追加
-    const windowId = sender.tab?.windowId;
-    if (!windowId) {
-      return { success: false, error: 'Could not determine window ID' };
-    }
-
-    // リダイレクト対策: タブ作成前に pending_job を保存
+    // リダイレクト対策: タブ遷移/作成前に pending_job を保存
     // ページがリダイレクトされて EXECUTE_LOGIN が届かなくても、
     // リダイレクト先の content script が checkPendingLoginSuccess で拾える
     await chrome.storage.local.set({
@@ -461,17 +456,51 @@ async function handleDispatchLogin(
     });
     console.log('[DISPATCH_LOGIN] Saved pending_job to storage (redirect safety net)');
 
+    if (use_same_tab && sender.tab?.id) {
+      // 同一タブ遷移モード: 送信元タブをOTAサイトに遷移させる
+      // レスポンスを先に返し、その後ナビゲーションを実行
+      // （ナビゲーション後はポータルページが破棄されるため、レスポンスは届かない可能性がある）
+      const senderTabId = sender.tab.id;
+      setTimeout(async () => {
+        try {
+          await chrome.tabs.update(senderTabId, { url: credentials.login_url });
+          await waitForTabLoad(senderTabId);
+          try {
+            await chrome.tabs.sendMessage(senderTabId, {
+              type: 'EXECUTE_LOGIN',
+              payload: {
+                job_id: credentials.job_id,
+                channel_code: credentials.channel_code,
+                login_id: credentials.login_id,
+                password: credentials.password,
+                extra_fields: credentials.extra_fields,
+              },
+            });
+          } catch {
+            console.log('[DISPATCH_LOGIN] same-tab sendMessage failed, relying on pending_job');
+          }
+        } catch (err) {
+          console.error('[DISPATCH_LOGIN] same-tab navigation failed:', err);
+        }
+      }, 0);
+      return { success: true, data: { tab_id: senderTabId, same_tab: true } };
+    }
+
+    // 通常モード: 同一ウィンドウに新規タブを追加
+    const windowId = sender.tab?.windowId;
+    if (!windowId) {
+      return { success: false, error: 'Could not determine window ID' };
+    }
+
     const tab = await chrome.tabs.create({
       url: credentials.login_url,
-      windowId: windowId, // 重要: 同じウィンドウにタブを追加
+      windowId: windowId,
       active: true,
     });
 
     // Content Script にログイン情報を送信
-    // タブの読み込み完了を待ってから送信
     await waitForTabLoad(tab.id!);
 
-    // EXECUTE_LOGIN を送信（リダイレクトで content script に届かない場合もある）
     try {
       await chrome.tabs.sendMessage(tab.id!, {
         type: 'EXECUTE_LOGIN',
@@ -484,8 +513,6 @@ async function handleDispatchLogin(
         },
       });
     } catch (sendError) {
-      // Content script がまだ準備できていない or ページがリダイレクト中
-      // pending_job がストレージにあるので、次のページの content script が処理する
       console.log('[DISPATCH_LOGIN] sendMessage failed, relying on pending_job:', sendError);
     }
 
