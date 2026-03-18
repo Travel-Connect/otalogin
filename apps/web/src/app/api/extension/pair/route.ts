@@ -18,6 +18,12 @@ export async function POST(request: NextRequest) {
     const { device_name } = parsed.data;
 
     const supabase = await createServiceClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 500 }
+      );
+    }
 
     // デバイストークンを生成
     const deviceToken = randomBytes(32).toString('hex');
@@ -29,8 +35,24 @@ export async function POST(request: NextRequest) {
     });
 
     if (insertError) {
+      console.error('[Pair] Failed to insert device token:', insertError);
       return NextResponse.json(
-        { success: false, error: 'Failed to save device token' },
+        { success: false, error: `Failed to save device token: ${insertError.message}` },
+        { status: 500 }
+      );
+    }
+
+    // 保存を検証
+    const { data: verify } = await supabase
+      .from('device_tokens')
+      .select('id')
+      .eq('token', deviceToken)
+      .single();
+
+    if (!verify) {
+      console.error('[Pair] Token insert succeeded but verification failed');
+      return NextResponse.json(
+        { success: false, error: 'Token verification failed after insert' },
         { status: 500 }
       );
     }
@@ -41,6 +63,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Pair] Unexpected error:', message);
     return NextResponse.json(
       { success: false, error: 'Failed to pair device', details: message },
       { status: 500 }
