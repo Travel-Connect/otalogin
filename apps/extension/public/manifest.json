@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OTAログイン支援",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoOkIxwDb32TttF5bk2O2EAap8NAUUuwtZzeeUCk1uW1DG5UhcC/zyY6oLGPvm3QHFV58VIGk2vC+JuO37PxqxLC0CpmnunVyDE4HF2BKlqpSO1C3AcQ2KxMkE+CU03WSkhXr3cXoJtXgzo/3ZjEjD3Usyr6OgW6z43tNRiBfWKzR66UBRWp4hu6pesdfR8ECm0qdVvq1StQyClqMCO82gkiTkN0jP1EBOEFCZxNTF1FPt3xIm/TxXm18KXI9v7hTWWZjboNsuQoWK047j1M75fsDH3MYLjvbhLHqj1us4MnYr3jztrPNCri5zX1P+nXYpWZ+EHUqSjo4dJNp5NLDLQIDAQAB",
   "version": "0.1.0",
   "description": "OTA自動ログイン支援ツール Chrome拡張",
   "permissions": [
