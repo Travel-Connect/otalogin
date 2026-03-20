@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     const { data: facility } = await serviceSupabase
       .from('facilities')
-      .select('id, code, name, official_site_url')
+      .select('id, code, name')
       .eq('id', facility_id)
       .single();
 

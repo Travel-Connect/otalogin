@@ -64,9 +64,11 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
   const [bulkSyncDialogOpen, setBulkSyncDialogOpen] = useState(false);
   const [bulkSyncing, setBulkSyncing] = useState(false);
 
-  // 転記ダイアログ用の状態
+  // 転記ダイアログ・ローディング用の状態
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [bulkExportDialogOpen, setBulkExportDialogOpen] = useState(false);
+  const [exportingChannel, setExportingChannel] = useState<string | null>(null);
+  const [bulkExporting, setBulkExporting] = useState(false);
 
   // 拡張機能の接続状態を確認
   const checkExtensionConnection = useCallback(async () => {
@@ -190,7 +192,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
 
   // 全チャネル一括転記（マスタPWシートに書き戻し）
   const handleBulkExport = async () => {
-    setBulkSyncing(true);
+    setBulkExporting(true);
     setError(null);
     setSuccessMessage(null);
 
@@ -213,7 +215,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
     } catch (err) {
       setError(err instanceof Error ? err.message : '転記に失敗しました');
     } finally {
-      setBulkSyncing(false);
+      setBulkExporting(false);
     }
   };
 
@@ -315,7 +317,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
   // チャネル単体の転記（マスタPWシートに書き戻し）
   const handleExport = async () => {
     if (!currentChannel) return;
-    setSyncingChannel(currentChannel.code);
+    setExportingChannel(currentChannel.code);
     setError(null);
     setSuccessMessage(null);
 
@@ -341,7 +343,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
     } catch (err) {
       setError(err instanceof Error ? err.message : '転記に失敗しました');
     } finally {
-      setSyncingChannel(null);
+      setExportingChannel(null);
     }
   };
 
@@ -592,7 +594,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                     </button>
                     <button
                       onClick={() => setBulkExportDialogOpen(true)}
-                      disabled={bulkSyncing}
+                      disabled={bulkSyncing || bulkExporting}
                       className="text-gray-400 hover:text-green-600 transition-colors disabled:opacity-50"
                       title="全チャネルをマスタPWシートに転記"
                     >
@@ -736,10 +738,10 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                     </button>
                     <button
                       onClick={() => setExportDialogOpen(true)}
-                      disabled={syncingChannel === currentChannel.code}
+                      disabled={!!exportingChannel || !!syncingChannel}
                       className="btn btn-secondary text-sm disabled:opacity-50"
                     >
-                      マスタに転記
+                      {exportingChannel === currentChannel.code ? '転記中...' : 'マスタに転記'}
                     </button>
                   </>
                 )}
