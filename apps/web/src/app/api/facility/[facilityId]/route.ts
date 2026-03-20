@@ -95,19 +95,22 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, code } = body;
+    const { name, code, credential_sheet_url } = body;
 
-    if (!name && !code) {
+    if (name === undefined && code === undefined && credential_sheet_url === undefined) {
       return NextResponse.json(
-        { error: '施設名または施設コードを指定してください' },
+        { error: '更新するフィールドを指定してください' },
         { status: 400 }
       );
     }
 
     // 更新データを構築
-    const updateData: Record<string, string> = {};
+    const updateData: Record<string, string | null> = {};
     if (name !== undefined) updateData.name = name.trim();
     if (code !== undefined) updateData.code = code.trim();
+    if (credential_sheet_url !== undefined) {
+      updateData.credential_sheet_url = credential_sheet_url?.trim() || null;
+    }
 
     // 空文字チェック
     if (updateData.name === '' || updateData.code === '') {

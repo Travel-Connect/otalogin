@@ -19,6 +19,7 @@ export interface Database {
           name: string;
           tags: string[];
           official_site_url: string | null;
+          credential_sheet_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -196,6 +197,7 @@ export interface FacilityDetailData {
   code: string;
   name: string;
   official_site_url: string | null;
+  credential_sheet_url: string | null;
   channels: ChannelWithAccount[];
 }
 

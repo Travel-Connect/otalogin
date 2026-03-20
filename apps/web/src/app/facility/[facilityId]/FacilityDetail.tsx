@@ -53,7 +53,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
 
   // 施設情報編集用の状態
   const [facilityEditMode, setFacilityEditMode] = useState(false);
-  const [facilityForm, setFacilityForm] = useState({ name: facility.name, code: facility.code });
+  const [facilityForm, setFacilityForm] = useState({ name: facility.name, code: facility.code, credential_sheet_url: facility.credential_sheet_url || '' });
   const [facilitySaving, setFacilitySaving] = useState(false);
 
   // 施設削除用の状態
@@ -142,6 +142,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
         body: JSON.stringify({
           name: facilityForm.name,
           code: facilityForm.code,
+          credential_sheet_url: facilityForm.credential_sheet_url,
         }),
       });
 
@@ -423,6 +424,16 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                       placeholder="施設コード（スプレッドシートの施設IDと一致させてください）"
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 w-16 shrink-0">PW表</label>
+                    <input
+                      type="url"
+                      value={facilityForm.credential_sheet_url}
+                      onChange={(e) => setFacilityForm({ ...facilityForm, credential_sheet_url: e.target.value })}
+                      className="input text-sm py-1 px-2 flex-1"
+                      placeholder="スプレッドシートURL（任意）"
+                    />
+                  </div>
                 </div>
                 <div className="flex gap-2 ml-2">
                   <button
@@ -435,7 +446,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                   <button
                     onClick={() => {
                       setFacilityEditMode(false);
-                      setFacilityForm({ name: facility.name, code: facility.code });
+                      setFacilityForm({ name: facility.name, code: facility.code, credential_sheet_url: facility.credential_sheet_url || '' });
                     }}
                     disabled={facilitySaving}
                     className="btn btn-secondary text-xs py-1 px-3 disabled:opacity-50"
@@ -462,6 +473,19 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                         </svg>
                       </a>
                     )}
+                    {facility.credential_sheet_url && (
+                      <a
+                        href={facility.credential_sheet_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 hover:text-green-800 transition-colors"
+                        title="ID/PW スプレッドシートを開く"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M9 4v16M15 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
+                        </svg>
+                      </a>
+                    )}
                   </h1>
                   <p className="text-sm text-gray-500">{facility.code}</p>
                 </div>
@@ -469,7 +493,7 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                   <>
                     <button
                       onClick={() => {
-                        setFacilityForm({ name: facility.name, code: facility.code });
+                        setFacilityForm({ name: facility.name, code: facility.code, credential_sheet_url: facility.credential_sheet_url || '' });
                         setFacilityEditMode(true);
                         setError(null);
                         setSuccessMessage(null);

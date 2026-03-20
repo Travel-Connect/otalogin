@@ -89,6 +89,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
       code: 'hotel-dev',
       name: '開発モード施設',
       official_site_url: null,
+      credential_sheet_url: null,
       channels: [
         {
           id: 'ch-1',
@@ -261,6 +262,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     code: facility.code,
     name: facility.name,
     official_site_url: facility.official_site_url ?? null,
+    credential_sheet_url: facility.credential_sheet_url ?? null,
     channels: channelsWithAccount,
   };
 
