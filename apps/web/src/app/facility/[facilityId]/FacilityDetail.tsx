@@ -64,6 +64,10 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
   const [bulkSyncDialogOpen, setBulkSyncDialogOpen] = useState(false);
   const [bulkSyncing, setBulkSyncing] = useState(false);
 
+  // 転記ダイアログ用の状態
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [bulkExportDialogOpen, setBulkExportDialogOpen] = useState(false);
+
   // 拡張機能の接続状態を確認
   const checkExtensionConnection = useCallback(async () => {
     const extensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
@@ -184,6 +188,35 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
     }
   };
 
+  // 全チャネル一括転記（マスタPWシートに書き戻し）
+  const handleBulkExport = async () => {
+    setBulkSyncing(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/master-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ facility_id: facility.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        let errorMsg = data.error || '転記に失敗しました';
+        if (data.details) errorMsg += ` (${data.details})`;
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      setSuccessMessage(data.message || '一括転記が完了しました');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '転記に失敗しました');
+    } finally {
+      setBulkSyncing(false);
+    }
+  };
+
   // 全チャネル一括同期
   const handleBulkSync = async () => {
     setBulkSyncing(true);
@@ -276,6 +309,39 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
       setError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // チャネル単体の転記（マスタPWシートに書き戻し）
+  const handleExport = async () => {
+    if (!currentChannel) return;
+    setSyncingChannel(currentChannel.code);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch('/api/master-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          facility_id: facility.id,
+          channel_id: currentChannel.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        let errorMsg = data.error || '転記に失敗しました';
+        if (data.details) errorMsg += ` (${data.details})`;
+        throw new Error(errorMsg);
+      }
+
+      const data = await response.json();
+      setSuccessMessage(data.message || '転記が完了しました');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '転記に失敗しました');
+    } finally {
+      setSyncingChannel(null);
     }
   };
 
@@ -525,6 +591,16 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                       )}
                     </button>
                     <button
+                      onClick={() => setBulkExportDialogOpen(true)}
+                      disabled={bulkSyncing}
+                      className="text-gray-400 hover:text-green-600 transition-colors disabled:opacity-50"
+                      title="全チャネルをマスタPWシートに転記"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={() => setDeleteDialogOpen(true)}
                       className="text-gray-400 hover:text-red-600 transition-colors"
                       title="施設を削除"
@@ -648,15 +724,24 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                   </label>
                 )}
                 {!editMode && isAdmin && (
-                  <button
-                    onClick={() => setSyncDialogOpen(true)}
-                    disabled={syncingChannel === currentChannel.code}
-                    className="btn btn-secondary text-sm disabled:opacity-50"
-                  >
-                    {syncingChannel === currentChannel.code
-                      ? '同期中...'
-                      : 'マスタPWと同期'}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setSyncDialogOpen(true)}
+                      disabled={syncingChannel === currentChannel.code}
+                      className="btn btn-secondary text-sm disabled:opacity-50"
+                    >
+                      {syncingChannel === currentChannel.code
+                        ? '同期中...'
+                        : 'マスタPWと同期'}
+                    </button>
+                    <button
+                      onClick={() => setExportDialogOpen(true)}
+                      disabled={syncingChannel === currentChannel.code}
+                      className="btn btn-secondary text-sm disabled:opacity-50"
+                    >
+                      マスタに転記
+                    </button>
+                  </>
                 )}
                 {!editMode && (
                   <button
@@ -725,6 +810,34 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
         onConfirm={handleFacilityDelete}
         onCancel={() => setDeleteDialogOpen(false)}
         danger
+      />
+
+      {/* 転記確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={exportDialogOpen}
+        title="マスタPWシートに転記"
+        message={`${currentChannel?.name || ''}のアカウント情報をマスタPWシートに書き戻しますか？\nスプレッドシートの値が上書きされます。`}
+        confirmLabel="転記する"
+        cancelLabel="キャンセル"
+        onConfirm={() => {
+          setExportDialogOpen(false);
+          handleExport();
+        }}
+        onCancel={() => setExportDialogOpen(false)}
+      />
+
+      {/* 一括転記確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={bulkExportDialogOpen}
+        title="全チャネルをマスタPWシートに転記"
+        message={`「${facility.name}」の全チャネルのアカウント情報をマスタPWシートに書き戻しますか？\nスプレッドシートの値が上書きされます。`}
+        confirmLabel="一括転記する"
+        cancelLabel="キャンセル"
+        onConfirm={() => {
+          setBulkExportDialogOpen(false);
+          handleBulkExport();
+        }}
+        onCancel={() => setBulkExportDialogOpen(false)}
       />
     </div>
   );
