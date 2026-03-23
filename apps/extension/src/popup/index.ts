@@ -110,7 +110,7 @@ async function handlePairClick(): Promise<void> {
       return;
     }
 
-    const portalUrl = prompt('ポータルURLを入力してください:', 'http://localhost:3000');
+    const portalUrl = prompt('ポータルURLを入力してください:', 'https://otalogin-web.vercel.app');
     if (!portalUrl) {
       return;
     }
