@@ -90,6 +90,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
       name: '開発モード施設',
       official_site_url: null,
       credential_sheet_url: null,
+      tags: [],
       channels: [
         {
           id: 'ch-1',
@@ -167,12 +168,14 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     { data: accounts },
     { data: healthStatuses },
     { data: userRole },
+    { data: allFacilitiesTags },
   ] = await Promise.all([
     getCachedMasterData(),
     supabase.from('facilities').select('*').eq('id', facilityId).single(),
     supabase.from('facility_accounts').select('*').eq('facility_id', facilityId).eq('account_type', 'shared').or(`user_email.is.null,user_email.eq.${user.email}`),
     supabase.from('channel_health_status').select('*').eq('facility_id', facilityId),
     supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
+    supabase.from('facilities').select('tags'),
   ]);
 
   const { channels, fieldDefinitions } = masterData;
@@ -182,6 +185,11 @@ export default async function FacilityPage({ params, searchParams }: Props) {
   }
 
   const isAdmin = userRole?.role === 'admin';
+
+  // サジェスト用: 全施設のタグを集約
+  const allTags = Array.from(
+    new Set((allFacilitiesTags || []).flatMap((f) => f.tags || []))
+  ).sort();
 
   // フィールド値を取得（accountsに依存）
   const accountIds = accounts?.map((a) => a.id) || [];
@@ -263,6 +271,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     name: facility.name,
     official_site_url: facility.official_site_url ?? null,
     credential_sheet_url: facility.credential_sheet_url ?? null,
+    tags: facility.tags ?? [],
     channels: channelsWithAccount,
   };
 
@@ -276,6 +285,7 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     <FacilityDetail
       facility={facilityData}
       isAdmin={isAdmin}
+      allTags={allTags}
       initialChannel={deepLinkChannel}
       autoRun={autoRun && !!deepLinkChannel}
       openPublic={openPublic && !!deepLinkChannel}

@@ -25,6 +25,8 @@ interface ExtensionResponse {
 interface Props {
   facility: FacilityDetailData;
   isAdmin: boolean;
+  /** サジェスト用: 全施設のタグ一覧 */
+  allTags?: string[];
   /** ディープリンクで指定されたチャネルコード（解決済み） */
   initialChannel?: string;
   /** ディープリンクで run=1 が指定された場合 true */
@@ -33,7 +35,7 @@ interface Props {
   openPublic?: boolean;
 }
 
-export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, openPublic }: Props) {
+export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel, autoRun, openPublic }: Props) {
   const router = useRouter();
   // ディープリンク指定があればそのチャネルを初期選択
   const resolvedInitialChannel = initialChannel && facility.channels.some(ch => ch.code === initialChannel)
@@ -69,6 +71,71 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
   const [bulkExportDialogOpen, setBulkExportDialogOpen] = useState(false);
   const [exportingChannel, setExportingChannel] = useState<string | null>(null);
   const [bulkExporting, setBulkExporting] = useState(false);
+
+  // タグ編集用の状態
+  const [tags, setTags] = useState<string[]>(facility.tags || []);
+  const [savedTags] = useState<string[]>(facility.tags || []);
+  const [tagInput, setTagInput] = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [tagSaving, setTagSaving] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  const tagsChanged = JSON.stringify(tags) !== JSON.stringify(savedTags);
+
+  // タグ追加（ローカルのみ）
+  const handleAddTag = (tag: string) => {
+    const trimmed = tag.trim();
+    if (!trimmed || tags.includes(trimmed)) {
+      setTagInput('');
+      return;
+    }
+    setTags([...tags, trimmed]);
+    setTagInput('');
+    setShowTagSuggestions(false);
+  };
+
+  // タグ削除（ローカルのみ）
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((t) => t !== tagToRemove));
+  };
+
+  // タグ保存
+  const handleSaveTags = async () => {
+    setTagSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/facility/${facility.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        setError(data.error || 'タグの保存に失敗しました');
+      } else {
+        setSuccessMessage('タグを保存しました');
+        router.refresh();
+      }
+    } catch {
+      setError('タグの保存に失敗しました');
+    } finally {
+      setTagSaving(false);
+    }
+  };
+
+  // タグ入力のサジェスト更新
+  const updateSuggestions = (value: string) => {
+    const filtered = allTags.filter(
+      (t) => (!value.trim() || t.toLowerCase().includes(value.toLowerCase())) && !tags.includes(t)
+    );
+    setTagSuggestions(filtered);
+    setShowTagSuggestions(filtered.length > 0);
+  };
+
+  const handleTagInputChange = (value: string) => {
+    setTagInput(value);
+    updateSuggestions(value);
+  };
 
   // 拡張機能の接続状態を確認
   const checkExtensionConnection = useCallback(async () => {
@@ -558,6 +625,65 @@ export function FacilityDetail({ facility, isAdmin, initialChannel, autoRun, ope
                   ) : (
                     <p className="text-xs text-gray-400">ID/PW表: 未設定</p>
                   )}
+                  {/* タグ編集エリア */}
+                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          className="text-gray-400 hover:text-red-500 transition-colors ml-0.5"
+                          title="タグを削除"
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                    <div className="relative">
+                      <input
+                        ref={tagInputRef}
+                        type="text"
+                        value={tagInput}
+                        onChange={(e) => handleTagInputChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddTag(tagInput);
+                          }
+                        }}
+                        onFocus={() => updateSuggestions(tagInput)}
+                        onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+                        className="text-xs border border-dashed border-gray-300 rounded-full px-2 py-0.5 w-24 focus:outline-none focus:border-indigo-400"
+                        placeholder="+ タグ追加"
+                      />
+                      {showTagSuggestions && (
+                        <div className="absolute z-10 mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-32 overflow-y-auto min-w-[120px]">
+                          {tagSuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => handleAddTag(suggestion)}
+                              className="block w-full text-left px-3 py-1 text-xs hover:bg-indigo-50 text-gray-700"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {tagsChanged && (
+                      <button
+                        onClick={handleSaveTags}
+                        disabled={tagSaving}
+                        className="text-xs bg-indigo-500 text-white px-2 py-0.5 rounded-full hover:bg-indigo-600 disabled:opacity-50 transition-colors"
+                      >
+                        {tagSaving ? '保存中...' : 'タグを保存'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {isAdmin && (
                   <>

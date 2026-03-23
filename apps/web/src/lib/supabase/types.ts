@@ -198,6 +198,7 @@ export interface FacilityDetailData {
   name: string;
   official_site_url: string | null;
   credential_sheet_url: string | null;
+  tags: string[];
   channels: ChannelWithAccount[];
 }
 

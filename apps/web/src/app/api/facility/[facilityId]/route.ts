@@ -95,9 +95,9 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const { name, code, credential_sheet_url } = body;
+    const { name, code, credential_sheet_url, tags } = body;
 
-    if (name === undefined && code === undefined && credential_sheet_url === undefined) {
+    if (name === undefined && code === undefined && credential_sheet_url === undefined && tags === undefined) {
       return NextResponse.json(
         { error: '更新するフィールドを指定してください' },
         { status: 400 }
@@ -105,11 +105,14 @@ export async function PATCH(
     }
 
     // 更新データを構築
-    const updateData: Record<string, string | null> = {};
+    const updateData: Record<string, string | string[] | null> = {};
     if (name !== undefined) updateData.name = name.trim();
     if (code !== undefined) updateData.code = code.trim();
     if (credential_sheet_url !== undefined) {
       updateData.credential_sheet_url = credential_sheet_url?.trim() || null;
+    }
+    if (tags !== undefined) {
+      updateData.tags = Array.isArray(tags) ? tags : [];
     }
 
     // 空文字チェック
