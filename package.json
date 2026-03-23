@@ -18,7 +18,8 @@
     "e2e:pack": "node scripts/e2e-pack.js",
     "verify": "pnpm lint && pnpm test && pnpm e2e:mock",
     "db:migrate": "supabase db push",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "deploy:extension": "bash scripts/deploy-extension.sh"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
