@@ -1,13 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [
-    {
-      "path": "/api/cron/healthcheck",
-      "schedule": "0 20 * * *"
-    },
-    {
-      "path": "/api/cron/cleanup-stuck-jobs",
-      "schedule": "5 20 * * *"
-    }
-  ]
+  "crons": []
 }
