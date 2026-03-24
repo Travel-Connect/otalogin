@@ -52,10 +52,13 @@
 
 /* iPhone-style wiggle animation for reorder mode */
 @keyframes wiggle {
-  0%, 100% { transform: rotate(0deg); }
-  30% { transform: rotate(-0.5deg); }
-  70% { transform: rotate(0.5deg); }
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(-0.5deg); }
+  50% { transform: rotate(0.5deg); }
+  80% { transform: rotate(-0.3deg); }
+  100% { transform: rotate(0deg); }
 }
 .animate-wiggle {
-  animation: wiggle 0.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: wiggle 0.5s ease-in-out infinite;
+  animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
 }
