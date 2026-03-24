@@ -26,12 +26,14 @@ export default async function HomePage() {
         { data: accounts },
         { data: healthStatuses },
         { data: userRole },
+        { data: facilityOrder },
       ] = await Promise.all([
         supabase.from('facilities').select('*').order('name'),
         supabase.from('channels').select('*').order('name'),
         supabase.from('facility_accounts').select('id, facility_id, channel_id, login_url, public_url_query, public_page_url, user_email').eq('account_type', 'shared'),
         supabase.from('channel_health_status').select('facility_id, channel_id, status, last_error_code'),
         supabase.from('user_roles').select('role').eq('user_id', user.id).single(),
+        supabase.from('user_facility_order').select('facility_id, position').eq('user_id', user.id).order('position'),
       ]);
 
       const isAdmin = userRole?.role === 'admin';
@@ -114,6 +116,17 @@ export default async function HomePage() {
           channels: facilityChannels,
         };
       });
+
+      // ユーザーの並び順を適用（設定がある場合）
+      const initialOrder = (facilityOrder || []).map(o => o.facility_id);
+      if (initialOrder.length > 0) {
+        const orderMap = new Map(initialOrder.map((id, i) => [id, i]));
+        dashboardFacilities.sort((a, b) => {
+          const posA = orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+          const posB = orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+          return posA - posB;
+        });
+      }
 
       return (
         <div className="min-h-screen bg-gray-50">
