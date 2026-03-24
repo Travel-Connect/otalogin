@@ -2,6 +2,9 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { FacilityCard } from './FacilityCard';
 import { Filters, type StatusFilter } from './Filters';
 import type { DashboardFacility, DashboardChannelStatus } from '@/lib/supabase/types';
@@ -19,6 +22,46 @@ interface ExtensionResponse {
   data?: unknown;
 }
 
+// --- SortableFacilityCard wrapper ---
+function SortableFacilityCard({
+  facility,
+  onChannelLogin,
+  reorderMode,
+}: {
+  facility: DashboardFacility;
+  onChannelLogin: (facilityId: string, channelId: string, channelCode: string) => void;
+  reorderMode: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: facility.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={reorderMode ? 'animate-wiggle' : ''}>
+      {reorderMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-2 left-2 z-10 w-8 h-8 bg-white/90 border border-gray-300 rounded-lg flex items-center justify-center cursor-grab active:cursor-grabbing shadow-sm"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+            <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+            <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
+          </svg>
+        </div>
+      )}
+      <FacilityCard facility={facility} onChannelLogin={onChannelLogin} />
+    </div>
+  );
+}
+
+// --- Main Dashboard ---
 interface FacilityDashboardProps {
   facilities: DashboardFacility[];
   isAdmin?: boolean;
@@ -30,6 +73,14 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<StatusFilter[]>([]);
   const [loginMessage, setLoginMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // 並べ替えモード
+  const [reorderMode, setReorderMode] = useState(false);
+  const [orderedIds, setOrderedIds] = useState<string[]>(() => facilities.map(f => f.id));
+  const [saving, setSaving] = useState(false);
+
+  // DnD sensors — require 8px movement before drag starts (prevents accidental drags)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   // 施設作成ダイアログ
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -69,6 +120,54 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
       return true;
     });
   }, [facilities, search, selectedTags, selectedStatuses]);
+
+  // Apply user ordering to filtered facilities
+  const orderedFacilities = useMemo(() => {
+    const orderMap = new Map(orderedIds.map((id, i) => [id, i]));
+    return [...filteredFacilities].sort((a, b) => {
+      const posA = orderMap.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const posB = orderMap.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      return posA - posB;
+    });
+  }, [filteredFacilities, orderedIds]);
+
+  // DnD drag end handler
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setOrderedIds((prev) => {
+      const oldIndex = prev.indexOf(active.id as string);
+      const newIndex = prev.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      const next = [...prev];
+      next.splice(oldIndex, 1);
+      next.splice(newIndex, 0, active.id as string);
+      return next;
+    });
+  }, []);
+
+  // Save order to API
+  const handleSaveOrder = useCallback(async () => {
+    setSaving(true);
+    try {
+      const orders = orderedIds.map((id, i) => ({ facility_id: id, position: i }));
+      const res = await fetch('/api/user-facility-order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      });
+      if (!res.ok) throw new Error('保存に失敗しました');
+      setReorderMode(false);
+      setLoginMessage({ type: 'success', text: '並び順を保存しました' });
+      setTimeout(() => setLoginMessage(null), 3000);
+    } catch {
+      setLoginMessage({ type: 'error', text: '並び順の保存に失敗しました' });
+      setTimeout(() => setLoginMessage(null), 5000);
+    } finally {
+      setSaving(false);
+    }
+  }, [orderedIds]);
 
   // Check extension connection
   const checkExtensionConnection = useCallback(async () => {
@@ -230,6 +329,29 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
           </>
         )}
 
+        {/* Reorder button */}
+        <div className="h-5 w-px bg-gray-200" />
+        {reorderMode ? (
+          <button
+            onClick={handleSaveOrder}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            {saving ? '保存中...' : '完了'}
+          </button>
+        ) : (
+          <button
+            onClick={() => setReorderMode(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl text-sm transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+              <polyline points="7 3 3 6 7 9" /><polyline points="17 15 21 18 17 21" />
+            </svg>
+            並べ替え
+          </button>
+        )}
+
         <span className="ml-auto text-xs text-gray-400">
           {filteredFacilities.length} / {facilities.length} 件
         </span>
@@ -246,7 +368,7 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
 
       {/* Card grid */}
       <main className="max-w-[1440px] mx-auto px-6 py-6">
-        {filteredFacilities.length === 0 ? (
+        {orderedFacilities.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-gray-400">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-4 opacity-30">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -261,15 +383,20 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {filteredFacilities.map((facility) => (
-              <FacilityCard
-                key={facility.id}
-                facility={facility}
-                onChannelLogin={handleChannelLogin}
-              />
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={orderedFacilities.map(f => f.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {orderedFacilities.map((facility) => (
+                  <SortableFacilityCard
+                    key={facility.id}
+                    facility={facility}
+                    onChannelLogin={handleChannelLogin}
+                    reorderMode={reorderMode}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </main>
 
