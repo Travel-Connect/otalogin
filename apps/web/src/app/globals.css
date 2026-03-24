@@ -57,5 +57,5 @@
   70% { transform: rotate(0.5deg); }
 }
 .animate-wiggle {
-  animation: wiggle 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: wiggle 0.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
