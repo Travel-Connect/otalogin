@@ -32,7 +32,8 @@
     "https://admin.chillnn.com/*",
     "https://connect.minpakuin.jp/*",
     "https://account.booking.com/*",
-    "https://admin.booking.com/*"
+    "https://admin.booking.com/*",
+    "https://ycs.agoda.com/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -62,7 +63,8 @@
         "https://admin.chillnn.com/*",
         "https://connect.minpakuin.jp/*",
         "https://account.booking.com/*",
-        "https://admin.booking.com/*"
+        "https://admin.booking.com/*",
+        "https://ycs.agoda.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",

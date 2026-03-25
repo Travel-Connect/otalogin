@@ -367,8 +367,14 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
   },
   agoda: {
     name: 'Agoda',
-    login_url: '',
-    link_only: true,
+    login_url: 'https://ycs.agoda.com/mldc/ja-jp/public/login',
+    id_only: true,
+    selectors: {
+      username: 'input[data-cy="unified-email-input"]',
+      password: '',
+      submit: '',
+      success_indicator: 'input[data-cy="unified-email-input"]',
+    },
   },
   expedia: {
     name: 'Expedia',
