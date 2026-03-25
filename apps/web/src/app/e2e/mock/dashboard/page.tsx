@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { FacilityDashboard } from '@/components/FacilityDashboard';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import type { DashboardFacility } from '@/lib/supabase/types';
@@ -55,7 +56,7 @@ export default function MockDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50" data-testid="mock-dashboard">
       <DashboardHeader isDevelopmentMode={true} />
-      <FacilityDashboard facilities={MOCK_FACILITIES} />
+      <Suspense><FacilityDashboard facilities={MOCK_FACILITIES} /></Suspense>
     </div>
   );
 }

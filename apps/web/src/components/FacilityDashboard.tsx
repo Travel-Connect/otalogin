@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -69,10 +69,26 @@ interface FacilityDashboardProps {
 
 export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashboardProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedStatuses, setSelectedStatuses] = useState<StatusFilter[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>(() => {
+    const tagParam = searchParams.get('tag');
+    return tagParam ? tagParam.split(',').filter(Boolean) : [];
+  });
+  const [selectedStatuses, setSelectedStatuses] = useState<StatusFilter[]>(() => {
+    const statusParam = searchParams.get('status');
+    return statusParam ? statusParam.split(',').filter((s): s is StatusFilter => ['error', 'running', 'unregistered'].includes(s)) : [];
+  });
   const [loginMessage, setLoginMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // フィルター状態をURLクエリパラメータに同期
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (selectedTags.length > 0) params.set('tag', selectedTags.join(','));
+    if (selectedStatuses.length > 0) params.set('status', selectedStatuses.join(','));
+    const qs = params.toString();
+    router.replace(qs ? `/?${qs}` : '/', { scroll: false });
+  }, [selectedTags, selectedStatuses, router]);
 
   // 並べ替えモード
   const [reorderMode, setReorderMode] = useState(false);

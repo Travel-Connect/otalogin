@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import { FacilityDashboard } from '@/components/FacilityDashboard';
@@ -131,7 +132,7 @@ export default async function HomePage() {
       return (
         <div className="min-h-screen bg-gray-50">
           <DashboardHeader isDevelopmentMode={false} />
-          <FacilityDashboard facilities={dashboardFacilities} isAdmin={isAdmin} />
+          <Suspense><FacilityDashboard facilities={dashboardFacilities} isAdmin={isAdmin} /></Suspense>
         </div>
       );
     }
