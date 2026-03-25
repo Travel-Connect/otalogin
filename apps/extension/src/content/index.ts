@@ -1297,6 +1297,12 @@ async function typeIntoField(element: Element, value: string): Promise<void> {
     input.value = value;
   }
 
+  // React の _valueTracker をリセット（直接代入時にReactが変更を検知するために必要）
+  const tracker = (input as any)._valueTracker;
+  if (tracker) {
+    tracker.setValue('');
+  }
+
   // setAttribute も設定（ASP.NET WebForms等で必要な場合がある）
   input.setAttribute('value', value);
 
