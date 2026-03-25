@@ -1267,8 +1267,20 @@ async function typeIntoField(element: Element, value: string): Promise<void> {
   const input = element as HTMLInputElement;
   input.focus();
 
-  // React 16+ はinput.valueの直接代入を検知しない（_valueTrackerで管理）
-  // ネイティブのsetterを使うことでReactの状態更新をトリガーする
+  // 方法1: execCommand でブラウザネイティブの入力をシミュレート
+  // これが最も確実（React/Vue/Angular 全対応）
+  // 既存の値をクリアしてから入力
+  input.select(); // 既存テキストを全選択
+  const execResult = document.execCommand('insertText', false, value);
+
+  if (execResult && input.value === value) {
+    console.log('[OTALogin] typeIntoField result: execCommand success for', input.id || input.name);
+    return;
+  }
+
+  console.log('[OTALogin] execCommand failed or value mismatch, falling back to setter approach');
+
+  // 方法2: ネイティブsetter（React _valueTracker バイパス）
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     window.HTMLInputElement.prototype, 'value'
   )?.set;
