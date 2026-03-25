@@ -1268,59 +1268,65 @@ async function typeIntoField(element: Element, value: string): Promise<void> {
   input.focus();
 
   // 方法1: execCommand でブラウザネイティブの入力をシミュレート
-  // これが最も確実（React/Vue/Angular 全対応）
-  // 既存の値をクリアしてから入力
-  input.select(); // 既存テキストを全選択
-  const execResult = document.execCommand('insertText', false, value);
-
-  if (execResult && input.value === value) {
-    console.log('[OTALogin] typeIntoField result: execCommand success for', input.id || input.name);
-    return;
+  // password フィールドでは制限される場合があるためtry-catchで保護
+  try {
+    input.select();
+    const execResult = document.execCommand('insertText', false, value);
+    if (execResult && input.value === value) {
+      console.log('[OTALogin] typeIntoField result: execCommand success for', input.id || input.name);
+      return;
+    }
+    console.log('[OTALogin] execCommand returned', execResult, 'value match:', input.value === value);
+  } catch (e) {
+    console.log('[OTALogin] execCommand threw:', e);
   }
 
-  console.log('[OTALogin] execCommand failed or value mismatch, falling back to setter approach');
+  // 方法2: 1文字ずつキーボードイベントをシミュレート（React制御コンポーネント対応）
+  console.log('[OTALogin] Trying character-by-character input for', input.id || input.name);
+  input.focus();
+  // 既存値をクリア
+  input.value = '';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 
-  // 方法2: ネイティブsetter（React _valueTracker バイパス）
-  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype, 'value'
-  )?.set;
-  const nativeTextareaValueSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLTextAreaElement.prototype, 'value'
-  )?.set;
+  for (const char of value) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
+    input.dispatchEvent(new InputEvent('input', {
+      inputType: 'insertText',
+      data: char,
+      bubbles: true,
+      cancelable: true,
+    }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+  }
 
-  const setter = input instanceof HTMLTextAreaElement
-    ? nativeTextareaValueSetter
-    : nativeInputValueSetter;
+  // イベントだけでは値が入らない場合、setter で値をセットしてから change を発火
+  if (input.value !== value) {
+    console.log('[OTALogin] Keyboard events did not set value, using setter + _valueTracker reset');
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype, 'value'
+    )?.set;
 
-  if (setter) {
-    try {
-      setter.call(input, value);
-    } catch (e) {
-      console.log('[OTALogin] Native setter failed, using direct assignment:', e);
+    if (nativeInputValueSetter) {
+      try {
+        nativeInputValueSetter.call(input, value);
+      } catch (e) {
+        input.value = value;
+      }
+    } else {
       input.value = value;
     }
-  } else {
-    input.value = value;
+
+    // React の _valueTracker をリセット
+    const tracker = (input as any)._valueTracker;
+    if (tracker) {
+      tracker.setValue('');
+    }
+
+    input.setAttribute('value', value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
   }
-
-  // 値が設定されたか検証（フォールバック）
-  if (input.value !== value) {
-    console.log('[OTALogin] Native setter did not set value, using direct assignment');
-    input.value = value;
-  }
-
-  // React の _valueTracker をリセット（直接代入時にReactが変更を検知するために必要）
-  const tracker = (input as any)._valueTracker;
-  if (tracker) {
-    tracker.setValue('');
-  }
-
-  // setAttribute も設定（ASP.NET WebForms等で必要な場合がある）
-  input.setAttribute('value', value);
-
-  // React synthetic event用にネイティブイベントを発火
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
 
   console.log('[OTALogin] typeIntoField result: value set =', input.value === value, 'for', input.id || input.name);
 }
