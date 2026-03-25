@@ -30,7 +30,9 @@
     "https://manage.489pro-x.com/*",
     "https://cm.tripla.ai/*",
     "https://admin.chillnn.com/*",
-    "https://connect.minpakuin.jp/*"
+    "https://connect.minpakuin.jp/*",
+    "https://account.booking.com/*",
+    "https://admin.booking.com/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -58,7 +60,9 @@
         "https://manage.489pro-x.com/*",
         "https://cm.tripla.ai/*",
         "https://admin.chillnn.com/*",
-        "https://connect.minpakuin.jp/*"
+        "https://connect.minpakuin.jp/*",
+        "https://account.booking.com/*",
+        "https://admin.booking.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",
