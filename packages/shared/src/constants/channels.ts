@@ -368,7 +368,7 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
     skip_submit: true,
     selectors: {
       username: 'input[name="username-input"]',
-      password: '#password-input',
+      password: '#password-input input[type="password"]',
       submit: '',
       success_indicator: 'input[name="username-input"]',
     },
