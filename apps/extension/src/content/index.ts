@@ -1281,7 +1281,12 @@ async function typeIntoField(element: Element, value: string): Promise<void> {
     : nativeInputValueSetter;
 
   if (setter) {
-    setter.call(input, value);
+    try {
+      setter.call(input, value);
+    } catch (e) {
+      console.log('[OTALogin] Native setter failed, using direct assignment:', e);
+      input.value = value;
+    }
   } else {
     input.value = value;
   }
