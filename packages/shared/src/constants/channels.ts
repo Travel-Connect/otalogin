@@ -378,8 +378,14 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
   },
   expedia: {
     name: 'Expedia',
-    login_url: '',
-    link_only: true,
+    login_url: '',  // 施設ごとにF列から取得
+    id_only: true,
+    selectors: {
+      username: '#emailControl',
+      password: '',
+      submit: '',
+      success_indicator: '#emailControl',
+    },
   },
   airbnb: {
     name: 'Airbnb',
