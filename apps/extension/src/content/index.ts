@@ -924,6 +924,13 @@ async function executeSingleStepLogin(
     }
   }
 
+  // skip_submit: ID/PW入力のみでストップ（Trip.com等）
+  if (config.skip_submit) {
+    console.log('[OTALogin] skip_submit mode, stopping after form fill');
+    await reportResult(job_id, 'success');
+    return { success: true };
+  }
+
   // ログインボタンをクリック
   const submitButton = await waitForElement(selectors.submit);
   console.log('[OTALogin] submitButton found:', !!submitButton);

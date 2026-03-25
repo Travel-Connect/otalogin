@@ -35,7 +35,8 @@
     "https://admin.booking.com/*",
     "https://ycs.agoda.com/*",
     "https://*.expediapartnercentral.com/*",
-    "https://*.expediagroup.com/*"
+    "https://*.expediagroup.com/*",
+    "https://ebooking.trip.com/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -68,7 +69,8 @@
         "https://admin.booking.com/*",
         "https://ycs.agoda.com/*",
         "https://*.expediapartnercentral.com/*",
-        "https://*.expediagroup.com/*"
+        "https://*.expediagroup.com/*",
+        "https://ebooking.trip.com/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle",

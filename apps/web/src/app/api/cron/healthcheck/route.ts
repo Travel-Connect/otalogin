@@ -5,9 +5,9 @@ import { CHANNEL_CONFIGS } from '@otalogin/shared';
 // Vercel Cron: 毎日 20:00 UTC (= 05:00 JST)
 // vercel.json で設定
 
-// ヘルスチェック除外チャネル（link_only + id_only）
+// ヘルスチェック除外チャネル（link_only + id_only + skip_submit）
 const LINK_ONLY_CODES = Object.entries(CHANNEL_CONFIGS)
-  .filter(([, config]) => config.link_only || config.id_only)
+  .filter(([, config]) => config.link_only || config.id_only || config.skip_submit)
   .map(([code]) => code);
 
 export async function GET(request: NextRequest) {

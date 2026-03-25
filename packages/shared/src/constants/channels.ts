@@ -88,6 +88,8 @@ export interface ChannelConfig {
   link_only?: boolean;
   /** IDのみ入力してストップ（パスワード入力・submit はしない） */
   id_only?: boolean;
+  /** ID/PW入力後にsubmitしない（フォーム入力まで自動化、送信は手動） */
+  skip_submit?: boolean;
   /** シングルステップログイン用のセレクタ（login_stepsが未定義の場合に使用） */
   selectors?: {
     username: string;
@@ -362,8 +364,14 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
   },
   tripcom: {
     name: 'Trip.com',
-    login_url: '',
-    link_only: true,
+    login_url: 'https://ebooking.trip.com/sign/in',
+    skip_submit: true,
+    selectors: {
+      username: '#rc_select_0',
+      password: '#password-input',
+      submit: '',
+      success_indicator: '#rc_select_0',
+    },
   },
   agoda: {
     name: 'Agoda',
