@@ -367,10 +367,10 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
     login_url: 'https://ebooking.trip.com/sign/in',
     skip_submit: true,
     selectors: {
-      username: '#rc_select_0',
+      username: 'input[name="username-input"]',
       password: '#password-input',
       submit: '',
-      success_indicator: '#rc_select_0',
+      success_indicator: 'input[name="username-input"]',
     },
   },
   agoda: {
