@@ -642,8 +642,11 @@ async function executeLogin(payload: LoginPayload): Promise<{ success: boolean; 
   try {
     let result: { success: boolean; error?: string };
 
+    // IDのみ入力してストップ（Booking.com等）
+    if (config.id_only) {
+      result = await executeIdOnlyLogin(job_id, config, login_id);
     // マルチステップログインの場合
-    if (config.login_steps && config.login_steps.length > 0) {
+    } else if (config.login_steps && config.login_steps.length > 0) {
       result = await executeMultiStepLogin(job_id, channel_code, config, login_id, password, extra_fields);
     } else {
       // シングルステップログイン（従来の方式）
@@ -840,6 +843,31 @@ async function executeMultiStepLogin(
 
   // ストレージにはまだ残っているので、リダイレクト先で再チェックされる
   return { success: true }; // Background側で結果を待つ
+}
+
+/**
+ * IDのみ入力してストップ（パスワード入力・submit はしない）
+ * Booking.com 等、管理画面のID入力まで自動化するチャネル用
+ */
+async function executeIdOnlyLogin(
+  job_id: string,
+  config: ChannelConfig,
+  login_id: string,
+): Promise<{ success: boolean; error?: string }> {
+  const selectors = config.selectors!;
+  console.log('[OTALogin] executeIdOnlyLogin started, username selector:', selectors.username);
+
+  const usernameInput = await waitForElement(selectors.username);
+  if (!usernameInput) {
+    await reportResult(job_id, 'failed', 'UI_CHANGED', 'Username input not found', 'form_fill');
+    return { success: false, error: 'Username input not found' };
+  }
+
+  await typeIntoField(usernameInput, login_id);
+  console.log('[OTALogin] ID filled, stopping (id_only mode)');
+
+  await reportResult(job_id, 'success');
+  return { success: true };
 }
 
 /**

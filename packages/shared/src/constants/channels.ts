@@ -86,6 +86,8 @@ export interface ChannelConfig {
   login_url: string;
   /** リンク専用チャネル（ログイン自動化なし、公開リンクのみ） */
   link_only?: boolean;
+  /** IDのみ入力してストップ（パスワード入力・submit はしない） */
+  id_only?: boolean;
   /** シングルステップログイン用のセレクタ（login_stepsが未定義の場合に使用） */
   selectors?: {
     username: string;
@@ -349,8 +351,14 @@ export const CHANNEL_CONFIGS: Record<ChannelCode, ChannelConfig> = {
   },
   booking: {
     name: 'Booking.com',
-    login_url: '',
-    link_only: true,
+    login_url: '',  // 施設ごとにF列から取得
+    id_only: true,
+    selectors: {
+      username: '#loginname',
+      password: '',
+      submit: '',
+      success_indicator: '#loginname',
+    },
   },
   tripcom: {
     name: 'Trip.com',
