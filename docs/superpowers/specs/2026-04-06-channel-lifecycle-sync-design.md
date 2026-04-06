@@ -246,7 +246,8 @@ async function deleteMatchingRows(
 2. `facilities` から `(id, code, name)` を取得
 3. `channels` から `(id, code, name)` を取得
 4. `deleteMatchingRows` でマスタシートの該当行を削除
-   - matcher は `matchFacilityAndChannel(row, facility, channel)`（リンカーンの場合は全ユーザーをヒットさせる）
+   - matcher は `matchFacilityAndChannel(row, facility, channel, { ignoreUserEmail: true })` で呼ぶ。リンカーンの場合も `user_email` を見ずに施設×チャネルで一致する全行をヒットさせる
+   - `matchFacilityAndChannel` の共通化実装では `ignoreUserEmail?: boolean` オプションを追加し、デフォルトは既存挙動（`false` = user_email を比較）
 5. `facility_accounts` から該当 `(facility_id, channel_id)` を全削除
 6. `channel_health_status` から該当 `(facility_id, channel_id)` を削除
 7. レスポンス返却
@@ -270,9 +271,13 @@ async function deleteMatchingRows(
    - `channel_health_status` から該当 `(facility_id, channel_id)` を削除
 3. シートは触らない（既に無いため）
 
+**検証方針:**
+- クライアントから渡された `channel_ids` を信頼する（サーバ側で `missing_in_sheet` を再計算して突き合わせない）
+- 理由: サーバの処理は結局 `(facility_id, channel_id)` で DELETE するだけであり、シート側の整合性は最終的に次回同期で担保される。再計算は Google Sheets API の追加呼び出しが発生しコスト増
+
 **エラー:**
 - `401/403` 認証系
-- `400` `channel_ids` が空または不正
+- `400` `channel_ids` が空または不正（空配列、非UUID）
 
 ---
 
@@ -334,6 +339,11 @@ useEffect(() => {
 
 既存の `ConfirmDialog` コンポーネントを使い回す（チャネル単体削除）。第2ダイアログ（`missing_in_sheet`）はチェックボックスリストが必要なため、新規コンポーネント `MissingChannelsDialog` を作成。
 
+**MissingChannelsDialog の振る舞い:**
+- デフォルトで全チェックボックス ON
+- ユーザーが全てのチェックを外した場合、「選択したOTAを削除」ボタンを `disabled` にする（0件削除を防止）
+- キャンセル時は何もしない（同期自体は完了しているため `results` のサマリメッセージは先に表示されている）
+
 ---
 
 ## 8. エラーハンドリング
@@ -365,7 +375,7 @@ useEffect(() => {
 ### 9.2 Unit テスト
 
 - `deleteMatchingRows`: モック `sheets` クライアントで降順削除・sheetId 解決・複数行・0件のケース
-- `matchFacilityAndChannel`: 新規の共通化関数。facility.code/id マッチ、チャネル名/code/alias マッチ、リンカーンのユーザーメール一致
+- `matchFacilityAndChannel`: `master-sync` と `master-export` から抽出した共通化関数。**既存挙動との一致を検証する characterization test** を優先（現在の `master-sync/route.ts:170-187` と `master-export/route.ts:175-199` のマッチングロジックと同じ入出力になることを確認）。加えて `ignoreUserEmail: true` のリンカーン全行ヒットケースもカバー
 
 ### 9.3 統合テスト（任意）
 
