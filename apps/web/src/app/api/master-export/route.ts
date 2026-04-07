@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { google } from 'googleapis';
 import { getPlainPassword } from '@/lib/crypto/credentials';
 import { CHANNEL_CONFIGS } from '@otalogin/shared';
+import { matchFacilityAndChannel } from '@/lib/master-sheet/match-row';
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,24 +94,6 @@ export async function POST(request: NextRequest) {
       channels = allChannels || [];
     }
 
-    // OTA名エイリアス（master-sync と同じ）
-    const sheetOtaAliases: Record<string, string> = {
-      moana: 'temairazu',
-      '予約プロ': 'yoyakupro',
-      '489pro': 'yoyakupro',
-      トリプラ: 'tripla',
-      チルン: 'chillnn',
-      ミンパクイン: 'minpakuin',
-      'booking.com': 'booking',
-      booking: 'booking',
-      'trip.com': 'tripcom',
-      tripcom: 'tripcom',
-      agoda: 'agoda',
-      'agoda.com': 'agoda',
-      expedia: 'expedia',
-      'expedia.com': 'expedia',
-    };
-
     // チャネルコード → スプレッドシート表示名
     const channelDisplayNames: Record<string, string> = {
       rakuten: '楽天トラベル',
@@ -174,28 +157,13 @@ export async function POST(request: NextRequest) {
         // スプレッドシートの該当行を検索
         const matchRowIndex = rows.findIndex((row, idx) => {
           if (idx < dataStartRow) return false;
-          const sheetFacilityId = row[0]?.toString().trim();
-          const sheetOTA = row[2]?.toString().trim();
-
-          const facilityMatch =
-            sheetFacilityId === facility.code ||
-            sheetFacilityId === facility.id ||
-            facility.id.startsWith(sheetFacilityId);
-
-          const sheetOTALower = sheetOTA?.toLowerCase();
-          const channelMatch =
-            sheetOTA === channel.name ||
-            sheetOTA === channel.code ||
-            sheetOTALower === channel.code?.toLowerCase() ||
-            sheetOtaAliases[sheetOTALower] === channel.code;
-
-          // リンカーン: ユーザーメールも一致させる
-          if (isLincoln && account.user_email) {
-            const sheetEmail = row[11]?.toString().trim();
-            return facilityMatch && channelMatch && sheetEmail === account.user_email;
-          }
-
-          return facilityMatch && channelMatch;
+          const userEmail = isLincoln ? account.user_email : null;
+          return matchFacilityAndChannel(
+            row as string[],
+            facility,
+            channel,
+            { userEmail }
+          );
         });
 
         // 書き込む行データを構築（A〜L列）

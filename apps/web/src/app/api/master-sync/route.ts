@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { google } from 'googleapis';
 import { encryptPassword } from '@/lib/crypto/credentials';
 import { CHANNEL_CONFIGS } from '@otalogin/shared';
+import { matchFacilityAndChannel } from '@/lib/master-sheet/match-row';
 
 export async function POST(request: NextRequest) {
   try {
@@ -133,24 +134,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // スプレッドシートのOTA名 → チャネルコードのエイリアス
-    const sheetOtaAliases: Record<string, string> = {
-      moana: 'temairazu',
-      '予約プロ': 'yoyakupro',
-      '489pro': 'yoyakupro',
-      トリプラ: 'tripla',
-      チルン: 'chillnn',
-      ミンパクイン: 'minpakuin',
-      'booking.com': 'booking',
-      booking: 'booking',
-      'trip.com': 'tripcom',
-      tripcom: 'tripcom',
-      agoda: 'agoda',
-      'agoda.com': 'agoda',
-      expedia: 'expedia',
-      'expedia.com': 'expedia',
-    };
-
     // OTP認証チャネル（パスワード不要）
     const otpChannels = ['rurubu'];
 
@@ -166,25 +149,8 @@ export async function POST(request: NextRequest) {
     const results: { channel: string; synced: number; skipped: boolean }[] = [];
 
     for (const channel of channels) {
-      // マッチング関数: 施設ID(col 0) = facility.code, OTA(col 2) = channel.name
-      const matchRow = (row: string[]) => {
-        const sheetFacilityId = row[0]?.toString().trim();
-        const sheetOTA = row[2]?.toString().trim();
-
-        const facilityMatch =
-          sheetFacilityId === facility.code ||
-          sheetFacilityId === facility.id ||
-          facility.id.startsWith(sheetFacilityId);
-
-        const sheetOTALower = sheetOTA?.toLowerCase();
-        const channelMatch =
-          sheetOTA === channel.name ||
-          sheetOTA === channel.code ||
-          sheetOTALower === channel.code?.toLowerCase() ||
-          sheetOtaAliases[sheetOTALower] === channel.code;
-
-        return facilityMatch && channelMatch;
-      };
+      const matchRow = (row: string[]) =>
+        matchFacilityAndChannel(row, facility, channel);
 
       // リンカーンはユーザー別クレデンシャル: 同一施設+チャネルの全行を処理
       const isLincoln = channel.code === 'lincoln';
