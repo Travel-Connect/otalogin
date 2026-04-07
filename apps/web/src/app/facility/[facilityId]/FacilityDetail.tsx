@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { StatusLamp } from '@/components/StatusLamp';
 import { PasswordField } from '@/components/PasswordField';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { MissingChannelsDialog, type MissingChannel } from '@/components/MissingChannelsDialog';
 import type { FacilityDetailData, ChannelWithAccount, AccountData } from '@/lib/supabase/types';
 import { buildFullUrl } from '@otalogin/shared';
 
@@ -74,6 +75,11 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
   // チャネル削除用の状態
   const [deleteChannelDialogOpen, setDeleteChannelDialogOpen] = useState(false);
   const [deletingChannel, setDeletingChannel] = useState(false);
+
+  // 一括同期後の「マスタに無いOTA」ダイアログ用
+  const [missingChannels, setMissingChannels] = useState<MissingChannel[]>([]);
+  const [missingDialogOpen, setMissingDialogOpen] = useState(false);
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   // 転記ダイアログ・ローディング用の状態
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -327,10 +333,54 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
       const data = await response.json();
       router.refresh();
       setSuccessMessage(data.message || '一括同期が完了しました');
+
+      // missing_in_sheet が返ってきたら第2ダイアログを開く
+      const missing: MissingChannel[] = Array.isArray(data.missing_in_sheet)
+        ? data.missing_in_sheet
+        : [];
+      if (missing.length > 0) {
+        setMissingChannels(missing);
+        setMissingDialogOpen(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '同期に失敗しました');
     } finally {
       setBulkSyncing(false);
+    }
+  };
+
+  // missing チャネルの一括削除
+  const handleCleanupMissing = async (selectedChannelIds: string[]) => {
+    if (selectedChannelIds.length === 0) return;
+    setCleaningUp(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/facility/${facility.id}/cleanup-missing`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel_ids: selectedChannelIds }),
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        let msg = data.error || '削除に失敗しました';
+        if (data.details) msg += ` (${data.details})`;
+        throw new Error(msg);
+      }
+
+      const data = await response.json();
+      setSuccessMessage(data.message || `${selectedChannelIds.length}チャネルを削除しました`);
+      setMissingDialogOpen(false);
+      setMissingChannels([]);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '削除に失敗しました');
+    } finally {
+      setCleaningUp(false);
     }
   };
 
@@ -1050,6 +1100,18 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
         onConfirm={handleDeleteChannel}
         onCancel={() => setDeleteChannelDialogOpen(false)}
         danger
+      />
+
+      {/* 一括同期後の「マスタに無いOTA」ダイアログ */}
+      <MissingChannelsDialog
+        isOpen={missingDialogOpen}
+        channels={missingChannels}
+        onConfirm={handleCleanupMissing}
+        onCancel={() => {
+          setMissingDialogOpen(false);
+          setMissingChannels([]);
+        }}
+        loading={cleaningUp}
       />
     </div>
   );
