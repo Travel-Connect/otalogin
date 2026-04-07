@@ -342,6 +342,62 @@ export async function POST(request: NextRequest) {
     const totalSynced = results.reduce((sum, r) => sum + r.synced, 0);
     const syncedChannels = results.filter((r) => r.synced > 0);
 
+    // 一括同期時のみ: DB にあるが sheet に無い (facility, channel) を検出
+    let missing_in_sheet: { channel_id: string; channel_name: string; account_count: number }[] = [];
+    if (!channel_id) {
+      try {
+        // 対象施設の全アカウント + チャネル名を取得
+        const { data: dbAccounts } = await serviceSupabase
+          .from('facility_accounts')
+          .select('id, channel_id, user_email, channels(id, code, name)')
+          .eq('facility_id', facility_id)
+          .eq('account_type', 'shared');
+
+        type DbAccount = {
+          id: string;
+          channel_id: string;
+          user_email: string | null;
+          channels: { id: string; code: string; name: string } | null;
+        };
+
+        const grouped = new Map<string, { channel_name: string; count: number }>();
+
+        for (const acc of (dbAccounts || []) as unknown as DbAccount[]) {
+          if (!acc.channels) continue;
+          // シートに該当行があるかチェック（リンカーンはユーザーメールも比較）
+          const isLincoln = acc.channels.code === 'lincoln';
+          const hasRowInSheet = dataRows.some((row) =>
+            matchFacilityAndChannel(
+              row as string[],
+              facility,
+              { code: acc.channels!.code, name: acc.channels!.name },
+              isLincoln ? { userEmail: acc.user_email } : {}
+            )
+          );
+          if (!hasRowInSheet) {
+            const entry = grouped.get(acc.channel_id) || {
+              channel_name: acc.channels.name,
+              count: 0,
+            };
+            entry.count += 1;
+            grouped.set(acc.channel_id, entry);
+          }
+        }
+
+        missing_in_sheet = Array.from(grouped.entries()).map(
+          ([channel_id, { channel_name, count }]) => ({
+            channel_id,
+            channel_name,
+            account_count: count,
+          })
+        );
+      } catch (e) {
+        // 同期本体は成功させ、missing_in_sheet 計算失敗は warning にとどめる
+        console.warn('[master-sync] missing_in_sheet computation failed:', e instanceof Error ? e.message : e);
+        missing_in_sheet = [];
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: channel_id
@@ -350,6 +406,7 @@ export async function POST(request: NextRequest) {
             : `シートに該当データがありません`)
         : `${syncedChannels.length}チャネル（${totalSynced}件）を同期しました`,
       results,
+      missing_in_sheet,
       // 注意: パスワードは絶対に返さない
     });
   } catch (error) {
