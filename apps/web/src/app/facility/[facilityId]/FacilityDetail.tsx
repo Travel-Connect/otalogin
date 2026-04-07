@@ -71,6 +71,10 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
   const [bulkSyncDialogOpen, setBulkSyncDialogOpen] = useState(false);
   const [bulkSyncing, setBulkSyncing] = useState(false);
 
+  // チャネル削除用の状態
+  const [deleteChannelDialogOpen, setDeleteChannelDialogOpen] = useState(false);
+  const [deletingChannel, setDeletingChannel] = useState(false);
+
   // 転記ダイアログ・ローディング用の状態
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [bulkExportDialogOpen, setBulkExportDialogOpen] = useState(false);
@@ -464,6 +468,37 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
       setError(err instanceof Error ? err.message : '同期に失敗しました');
     } finally {
       setSyncingChannel(null);
+    }
+  };
+
+  // 単一チャネル削除（DB+マスタシート）
+  const handleDeleteChannel = async () => {
+    if (!currentChannel) return;
+    setDeletingChannel(true);
+    setDeleteChannelDialogOpen(false);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await fetch(
+        `/api/facility/${facility.id}/channel/${currentChannel.id}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        let msg = data.error || '削除に失敗しました';
+        if (data.details) msg += ` (${data.details})`;
+        throw new Error(msg);
+      }
+
+      const data = await response.json();
+      setSuccessMessage(data.channel_name ? `${data.channel_name}を削除しました` : '削除しました');
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '削除に失敗しました');
+    } finally {
+      setDeletingChannel(false);
     }
   };
 
@@ -891,6 +926,17 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
                     >
                       {exportingChannel === currentChannel.code ? '転記中...' : 'マスタに転記'}
                     </button>
+                    <button
+                      onClick={() => setDeleteChannelDialogOpen(true)}
+                      disabled={deletingChannel || syncingChannel === currentChannel.code || exportingChannel === currentChannel.code}
+                      className="text-red-500 hover:text-red-700 transition-colors disabled:opacity-50 ml-1"
+                      title="このOTAを削除"
+                      aria-label="このOTAを削除"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </>
                 )}
                 {!editMode && (
@@ -988,6 +1034,22 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
           handleBulkExport();
         }}
         onCancel={() => setBulkExportDialogOpen(false)}
+      />
+
+      {/* チャネル削除確認ダイアログ */}
+      <ConfirmDialog
+        isOpen={deleteChannelDialogOpen}
+        title="OTAを削除"
+        message={
+          currentChannel
+            ? `この施設の「${currentChannel.name}」のログイン情報をDBとマスタPWシートから削除します。この操作は取り消せません。マスタPWシートから再度追加して同期すれば復活できます。`
+            : ''
+        }
+        confirmLabel={deletingChannel ? '削除中...' : '削除する'}
+        cancelLabel="キャンセル"
+        onConfirm={handleDeleteChannel}
+        onCancel={() => setDeleteChannelDialogOpen(false)}
+        danger
       />
     </div>
   );
