@@ -360,37 +360,44 @@ export async function POST(request: NextRequest) {
           channels: { id: string; code: string; name: string } | null;
         };
 
+        // チャネル単位で集約: そのチャネルがシートに1行でもあれば missing 扱いしない
+        // リンカーンの user_email レベルの差分は別スコープ（マスタ同期で日々追従）
         const grouped = new Map<string, { channel_name: string; count: number }>();
 
         for (const acc of (dbAccounts || []) as unknown as DbAccount[]) {
           if (!acc.channels) continue;
-          // シートに該当行があるかチェック（リンカーンはユーザーメールも比較）
-          const isLincoln = acc.channels.code === 'lincoln';
-          const hasRowInSheet = dataRows.some((row) =>
+          const entry = grouped.get(acc.channel_id) || {
+            channel_name: acc.channels.name,
+            count: 0,
+          };
+          entry.count += 1;
+          grouped.set(acc.channel_id, entry);
+        }
+
+        // チャネルごとに「シートに1行でもあるか」を判定し、無いものだけ missing として返す
+        missing_in_sheet = [];
+        const groupedEntries = Array.from(grouped.entries());
+        for (const [channel_id, { channel_name, count }] of groupedEntries) {
+          const channelInfo = (dbAccounts || []).find(
+            (a) => (a as unknown as DbAccount).channel_id === channel_id
+          ) as unknown as DbAccount | undefined;
+          if (!channelInfo?.channels) continue;
+          const hasAnyRowInSheet = dataRows.some((row) =>
             matchFacilityAndChannel(
               row as string[],
               facility,
-              { code: acc.channels!.code, name: acc.channels!.name },
-              isLincoln ? { userEmail: acc.user_email } : {}
+              { code: channelInfo.channels!.code, name: channelInfo.channels!.name },
+              { ignoreUserEmail: true }
             )
           );
-          if (!hasRowInSheet) {
-            const entry = grouped.get(acc.channel_id) || {
-              channel_name: acc.channels.name,
-              count: 0,
-            };
-            entry.count += 1;
-            grouped.set(acc.channel_id, entry);
+          if (!hasAnyRowInSheet) {
+            missing_in_sheet.push({
+              channel_id,
+              channel_name,
+              account_count: count,
+            });
           }
         }
-
-        missing_in_sheet = Array.from(grouped.entries()).map(
-          ([channel_id, { channel_name, count }]) => ({
-            channel_id,
-            channel_name,
-            account_count: count,
-          })
-        );
       } catch (e) {
         // 同期本体は成功させ、missing_in_sheet 計算失敗は warning にとどめる
         console.warn('[master-sync] missing_in_sheet computation failed:', e instanceof Error ? e.message : e);
