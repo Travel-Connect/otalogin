@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { StatusLamp } from '@/components/StatusLamp';
@@ -37,10 +37,15 @@ interface Props {
 
 export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel, autoRun, openPublic }: Props) {
   const router = useRouter();
+  // アカウントが設定されているチャネルのみ表示
+  const visibleChannels = useMemo(
+    () => facility.channels.filter((ch) => ch.account !== null),
+    [facility.channels]
+  );
   // ディープリンク指定があればそのチャネルを初期選択
-  const resolvedInitialChannel = initialChannel && facility.channels.some(ch => ch.code === initialChannel)
+  const resolvedInitialChannel = initialChannel && visibleChannels.some(ch => ch.code === initialChannel)
     ? initialChannel
-    : facility.channels[0]?.code || '';
+    : visibleChannels[0]?.code || '';
   const [activeChannel, setActiveChannel] = useState<string>(resolvedInitialChannel);
   const channelDetailRef = useRef<HTMLDivElement>(null);
   const autoRunTriggered = useRef(false);
@@ -171,6 +176,14 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
   useEffect(() => {
     checkExtensionConnection();
   }, [checkExtensionConnection]);
+
+  // activeChannel が visibleChannels から消えた場合、先頭にフォールバック
+  useEffect(() => {
+    if (visibleChannels.length === 0) return;
+    if (!visibleChannels.some((ch) => ch.code === activeChannel)) {
+      setActiveChannel(visibleChannels[0].code);
+    }
+  }, [visibleChannels, activeChannel]);
 
   // ディープリンク: チャネル詳細エリアにスクロール
   useEffect(() => {
@@ -768,29 +781,38 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
         )}
 
         {/* チャネルタブ */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="flex gap-4">
-            {facility.channels.map((channel) => (
-              <button
-                key={channel.code}
-                onClick={() => {
-                  setActiveChannel(channel.code);
-                  setEditMode(false);
-                  setError(null);
-                  setSuccessMessage(null);
-                }}
-                className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
-                  activeChannel === channel.code
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <StatusLamp status={channel.status} size="sm" />
-                {channel.name}
-              </button>
-            ))}
-          </nav>
-        </div>
+        {visibleChannels.length > 0 ? (
+          <div className="border-b border-gray-200 mb-6">
+            <nav className="flex gap-4">
+              {visibleChannels.map((channel) => (
+                <button
+                  key={channel.code}
+                  onClick={() => {
+                    setActiveChannel(channel.code);
+                    setEditMode(false);
+                    setError(null);
+                    setSuccessMessage(null);
+                  }}
+                  className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+                    activeChannel === channel.code
+                      ? 'border-primary-500 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <StatusLamp status={channel.status} size="sm" />
+                  {channel.name}
+                </button>
+              ))}
+            </nav>
+          </div>
+        ) : (
+          <div className="card text-center py-12 text-gray-500">
+            <p className="mb-2">アカウントが登録されていません。</p>
+            {isAdmin && (
+              <p className="text-sm">右上の「全チャネル一括同期」ボタンからマスタPWシートと同期してください。</p>
+            )}
+          </div>
+        )}
 
         {/* チャネル詳細 */}
         {currentChannel && (
