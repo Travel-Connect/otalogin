@@ -114,6 +114,7 @@ export default async function HomePage() {
           name: facility.name,
           tags: facility.tags || [],
           official_site_url: facility.official_site_url ?? null,
+          credential_sheet_url: facility.credential_sheet_url ?? null,
           channels: facilityChannels,
         };
       });
@@ -131,7 +132,11 @@ export default async function HomePage() {
 
       return (
         <div className="min-h-screen bg-gray-50">
-          <DashboardHeader isDevelopmentMode={false} />
+          <DashboardHeader
+            isDevelopmentMode={false}
+            isAdmin={isAdmin}
+            facilities={dashboardFacilities.map((f) => ({ id: f.id, name: f.name }))}
+          />
           <Suspense><FacilityDashboard facilities={dashboardFacilities} isAdmin={isAdmin} /></Suspense>
         </div>
       );

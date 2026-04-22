@@ -27,10 +27,14 @@ function SortableFacilityCard({
   facility,
   onChannelLogin,
   reorderMode,
+  isAdmin,
+  onMessage,
 }: {
   facility: DashboardFacility;
   onChannelLogin: (facilityId: string, channelId: string, channelCode: string) => void;
   reorderMode: boolean;
+  isAdmin: boolean;
+  onMessage: (msg: { type: 'success' | 'error'; text: string }) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: facility.id });
   const style = {
@@ -56,7 +60,7 @@ function SortableFacilityCard({
           </svg>
         </div>
       )}
-      <FacilityCard facility={facility} onChannelLogin={onChannelLogin} />
+      <FacilityCard facility={facility} onChannelLogin={onChannelLogin} isAdmin={isAdmin} onMessage={onMessage} />
     </div>
   );
 }
@@ -408,6 +412,11 @@ export function FacilityDashboard({ facilities, isAdmin = false }: FacilityDashb
                     facility={facility}
                     onChannelLogin={handleChannelLogin}
                     reorderMode={reorderMode}
+                    isAdmin={isAdmin}
+                    onMessage={(msg) => {
+                      setLoginMessage(msg);
+                      setTimeout(() => setLoginMessage(null), msg.type === 'success' ? 3000 : 5000);
+                    }}
                   />
                 ))}
               </div>

@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { MissingChannelsDialog, type MissingChannel } from '@/components/MissingChannelsDialog';
 import type { FacilityDetailData, ChannelWithAccount, AccountData } from '@/lib/supabase/types';
 import { buildFullUrl } from '@otalogin/shared';
+import { MASTER_SHEET_URL } from '@/lib/constants';
 
 // Chrome拡張の型定義
 declare global {
@@ -839,6 +840,21 @@ export function FacilityDetail({ facility, isAdmin, allTags = [], initialChannel
                 )}
               </div>
             )}
+            <a
+              href={MASTER_SHEET_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 flex-shrink-0"
+              title="マスタPWシートを開く"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="3" y1="15" x2="21" y2="15" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+              マスターシート
+            </a>
           </div>
         </div>
       </header>

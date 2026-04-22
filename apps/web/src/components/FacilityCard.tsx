@@ -8,9 +8,11 @@ import type { DashboardFacility, DashboardChannelInfo } from '@/lib/supabase/typ
 interface FacilityCardProps {
   facility: DashboardFacility;
   onChannelLogin: (facilityId: string, channelId: string, channelCode: string) => void;
+  isAdmin?: boolean;
+  onMessage?: (msg: { type: 'success' | 'error'; text: string }) => void;
 }
 
-export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
+export function FacilityCard({ facility, onChannelLogin, isAdmin = false, onMessage }: FacilityCardProps) {
   const systemsChannels = facility.channels.filter((c) => c.category === 'Systems');
   const otaChannels = facility.channels.filter((c) => c.category === 'OTA');
 
@@ -85,7 +87,13 @@ export function FacilityCard({ facility, onChannelLogin }: FacilityCardProps) {
             ))}
           </div>
         </div>
-        <FacilityMenu facilityId={facility.id} />
+        <FacilityMenu
+          facilityId={facility.id}
+          facilityName={facility.name}
+          credentialSheetUrl={facility.credential_sheet_url}
+          isAdmin={isAdmin}
+          onMessage={onMessage}
+        />
       </div>
 
       {/* Divider */}

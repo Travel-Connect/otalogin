@@ -2,15 +2,18 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { MASTER_SHEET_URL } from '@/lib/constants';
+import { AllFacilitiesSyncButton } from './AllFacilitiesSyncButton';
 
 const EXTENSION_URL = 'chrome://extensions/?id=adnilddmcnhpiajhkbehbjpcioabceia';
-const MASTER_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Gu3kQ-akBLRiRVsrxim3-cH3crg_e0rLN12ABTpZHA0/edit?gid=0#gid=0';
 
 interface DashboardHeaderProps {
   isDevelopmentMode: boolean;
+  isAdmin?: boolean;
+  facilities?: { id: string; name: string }[];
 }
 
-export function DashboardHeader({ isDevelopmentMode }: DashboardHeaderProps) {
+export function DashboardHeader({ isDevelopmentMode, isAdmin = false, facilities = [] }: DashboardHeaderProps) {
   const [copied, setCopied] = useState(false);
 
   const handleExtensionLink = async () => {
@@ -42,6 +45,9 @@ export function DashboardHeader({ isDevelopmentMode }: DashboardHeaderProps) {
             <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
               開発モード
             </span>
+          )}
+          {isAdmin && facilities.length > 0 && (
+            <AllFacilitiesSyncButton facilities={facilities} />
           )}
           <a
             href={MASTER_SHEET_URL}

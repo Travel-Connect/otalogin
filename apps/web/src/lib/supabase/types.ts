@@ -188,6 +188,7 @@ export interface DashboardFacility {
   name: string;
   tags: string[];
   official_site_url: string | null;
+  credential_sheet_url: string | null;
   channels: DashboardChannelInfo[];
 }
 

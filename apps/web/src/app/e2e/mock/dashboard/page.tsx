@@ -17,6 +17,7 @@ const MOCK_FACILITIES: DashboardFacility[] = [
     name: 'テストホテル沖縄',
     tags: ['南部', 'リゾート'],
     official_site_url: 'https://example.com/okinawa',
+    credential_sheet_url: null,
     channels: [
       { channel_id: 'ch1', channel_code: 'neppan', channel_name: 'ねっぱん', category: 'Systems', status: 'success', has_account: true, error_code: null, public_page_url: null, logo_url: null, bg_color: null },
       { channel_id: 'ch2', channel_code: 'lincoln', channel_name: 'リンカーン', category: 'Systems', status: 'unregistered', has_account: false, error_code: null, public_page_url: null, logo_url: null, bg_color: null },
@@ -33,6 +34,7 @@ const MOCK_FACILITIES: DashboardFacility[] = [
     name: 'テストホテル那覇',
     tags: ['南部', '都市'],
     official_site_url: 'https://example.com/naha',
+    credential_sheet_url: null,
     channels: [
       { channel_id: 'ch1', channel_code: 'neppan', channel_name: 'ねっぱん', category: 'Systems', status: 'success', has_account: true, error_code: null, public_page_url: null, logo_url: null, bg_color: null },
       { channel_id: 'ch3', channel_code: 'jalan', channel_name: 'じゃらん', category: 'OTA', status: 'success', has_account: true, error_code: null, public_page_url: 'https://www.jalan.net/yad400000/', logo_url: null, bg_color: null },
@@ -45,6 +47,7 @@ const MOCK_FACILITIES: DashboardFacility[] = [
     name: 'テストホテル東部',
     tags: ['東部'],
     official_site_url: null,
+    credential_sheet_url: null,
     channels: [
       { channel_id: 'ch1', channel_code: 'neppan', channel_name: 'ねっぱん', category: 'Systems', status: 'error', has_account: true, error_code: 'TIMEOUT', public_page_url: null, logo_url: null, bg_color: null },
       { channel_id: 'ch3', channel_code: 'jalan', channel_name: 'じゃらん', category: 'OTA', status: 'success', has_account: true, error_code: null, public_page_url: 'https://www.jalan.net/yad500000/', logo_url: null, bg_color: null },
