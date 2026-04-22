@@ -131,6 +131,26 @@ export default async function FacilityPage({ params, searchParams }: Props) {
     redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
   }
 
+  // open=sheet ファストパス: credential_sheet_url へリダイレクト
+  // URL パラメータは UUID でも施設コード(例: starhouse) でも受け付ける
+  if (query.open === 'sheet') {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(facilityId);
+    const { data: target } = await supabase
+      .from('facilities')
+      .select('id, credential_sheet_url')
+      .eq(isUuid ? 'id' : 'code', facilityId)
+      .maybeSingle();
+
+    if (target?.credential_sheet_url) {
+      redirect(target.credential_sheet_url);
+    }
+    // URL 未設定で code 経由のアクセスなら、通常の施設ページ（UUID）に誘導
+    if (!isUuid && target?.id) {
+      redirect(`/facility/${target.id}`);
+    }
+    // UUID かつ URL 未設定なら通常のフル描画にフォールスルー（画面に「ID/PW表: 未設定」が出る）
+  }
+
   // run=1 ファストパス: チャネルマスタ（キャッシュ）と施設名だけ取得し、即座にディスパッチ
   if (autoRun) {
     const [masterData, { data: facility }] = await Promise.all([
