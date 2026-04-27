@@ -123,6 +123,55 @@ const { data, error } = await supabase
 - 手動ログイン実行時にもねっぱん top.php を通過すれば取得
 - `fetched_at` で最終取得日時を確認可能
 
+## TC Portal お知らせ連携
+
+### 概要
+
+PW経過日数アラートを保存した後、TC Portal の Webhook API にお知らせとして自動通知する。
+施設ごとに1つのお知らせにまとめ、`external_ref` による日次 upsert で重複を防止する。
+
+### データフロー（追加分）
+
+```
+[neppan_password_alerts upsert 完了]
+  ↓
+[notifyTcPortal()] → POST TC_PORTAL_WEBHOOK_URL
+  Headers: { Content-Type: application/json, X-Webhook-Key: TC_PORTAL_WEBHOOK_KEY }
+  Body: { title, body, external_ref }
+  ↓
+[TC Portal] → announcements テーブルに INSERT or UPDATE
+```
+
+### Webhook リクエスト例
+
+```json
+{
+  "title": "⚠ ねっぱん PW変更アラート: スターハウス今帰仁",
+  "body": "・るるぶトラベル: 87日経過しました。",
+  "external_ref": "neppan-pw:d354af6e-265f-42b6-b6cd-eb9ec2da3fc3:2026-03-12"
+}
+```
+
+### TC Portal 側の動作
+
+| external_ref | 動作 | レスポンス |
+|---|---|---|
+| 新規 | お知らせを `published` で新規作成 | `{ action: "created", id: "..." }` |
+| 既存 | `title` / `body` を更新 | `{ action: "updated", id: "..." }` |
+
+### 環境変数
+
+| 変数名 | 説明 |
+|--------|------|
+| `TC_PORTAL_WEBHOOK_URL` | TC Portal の Webhook エンドポイント URL |
+| `TC_PORTAL_WEBHOOK_KEY` | Webhook 認証キー（`X-Webhook-Key` ヘッダーに設定） |
+
+未設定の場合、通知はスキップされる（エラーにはならない）。
+
+### 実装ファイル
+
+- `apps/web/src/app/api/extension/neppan-alerts/route.ts` 内の `notifyTcPortal()` 関数
+
 ## 注意事項
 
 - データは upsert のため、同一施設×同一サイトの古いデータは上書きされる

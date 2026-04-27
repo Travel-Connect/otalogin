@@ -1,3 +1,6 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'scripts/master-input-helper'
+  - 'scripts/neppan-password-rotator'
+  - 'scripts/ikyu-password-rotator'
